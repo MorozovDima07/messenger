@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Direct Settings - Messenger</title>
+    <link th:href="@{/static/site.css}" rel="stylesheet"/>
+</head>
+<body>
+<header>
+    <th:block th:replace="~{fragments/header :: left-nav('direct')}"></th:block>
+    <th:block th:replace="~{fragments/header :: right-nav(${contact.username}, ${chat != null ? '/direct?id=' + chat.id : null})}"></th:block>
+</header>
+<div class="container container-chats">
+    <th:block th:replace="~{fragments/chat-list :: chat-list(${chats})}"></th:block>
+    <div class="chat-set">
+        <div class="main">
+            <div class="div-messages">
+                <ul class="messages">
+                    <li th:each="message : ${messages}" th:class="${message.userSend} ? 'message user-send' : 'message-with-ava'">
+                        <div th:if="${!message.userSend}" class="circle5"><img th:src="@{/static/icons/user.svg}"/></div>
+                        <div class="message" th:classappend="${message.userSend} ? '' : 'message-without-ava'">
+                            <span th:text="${message.content}"></span>
+                            <div class="date-last-mess mess-date">
+                                <img th:src="@{/static/icons/read.svg}" th:if="${message.read and message.userSend}"/>
+                                <img th:src="@{/static/icons/unread.svg}" th:if="${!message.read and message.userSend}"/>
+                                <p th:text="${message.date}"></p>
+                            </div>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+            <div class="send-message">
+                <form th:action="@{/chats/{id}/send(id=${chat.id})}" method="post" class="chat-send">
+                    <a href="#" class="chat-list-item chat-list-item-sendfile"><img th:src="@{/static/icons/attach.svg}"/></a>
+                    <input type="text" name="content" class="input-mess" placeholder="Текст в поле ввода"/>
+                    <button type="submit" class="chat-list-item chat-list-item-sendmess"><img th:src="@{/static/icons/send.svg}"/></button>
+                </form>
+            </div>
+        </div>
+        <div class="add-set">
+            <div class="ava">
+                <div class="circle3"><img th:src="@{/static/icons/user.svg}"/></div>
+            </div>
+            <div class="cont-info cont-info-set">
+                <li class="cont-name" th:text="${contact.username}"></li>
+            </div>
+            <ul class="settings">
+                <li class="li-setting"><img th:src="@{/static/icons/email.svg}"/><div class="setting-text" th:text="${contact.email}"></div></li>
+                <li class="setting">
+                    <a th:href="@{/direct/{id}/info(id=${chat.id})}" class="a-setting">
+                        <img th:src="@{/static/icons/user-info.svg}"/>
+                        <div class="setting-text">Информация о пользователе</div>
+                    </a>
+                </li>
+                <li class="setting">
+                    <form th:action="@{/direct/{id}/toggle-notifications(id=${chat.id})}" method="post" style="display: inline;">
+                        <button type="submit" class="a-setting" style="background: none; border: none; padding: 0; cursor: pointer;">
+                            <img th:src="@{/static/icons/notifications.svg}"/>
+                            <div class="setting-text">Уведомления</div>
+                            <div class="circle4" th:text="${notificationsEnabled} ? 'ВКЛ' : 'ВЫКЛ'"></div>
+                        </button>
+                    </form>
+                </li>
+                <li class="setting">
+                    <a th:href="@{/direct/{id}/files(id=${chat.id})}" class="a-setting">
+                        <img th:src="@{/static/icons/files.svg}"/>
+                        <div class="setting-text">Файлы</div>
+                    </a>
+                </li>
+                <li class="setting">
+                    <a th:href="@{/direct/{id}/share(id=${chat.id})}" class="a-setting">
+                        <img th:src="@{/static/icons/share.svg}"/>
+                        <div class="setting-text">Поделиться контактом</div>
+                    </a>
+                </li>
+                <li class="setting">
+                    <a th:href="@{/direct/{id}/delete(id=${chat.id})}" class="a-setting">
+                        <img th:src="@{/static/icons/trash.svg}"/>
+                        <div class="setting-text">Удалить контакт</div>
+                    </a>
+                </li>
+                <li class="setting">
+                    <a th:href="@{/direct/{id}/block(id=${chat.id})}" class="a-setting">
+                        <img th:src="@{/static/icons/block.svg}"/>
+                        <div class="setting-text">Заблокировать</div>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Invite to Group - Messenger</title>
+    <link th:href="@{/static/site.css}" rel="stylesheet"/>
+</head>
+<body>
+<header>
+    <th:block th:replace="~{fragments/header :: left-nav('group')}"></th:block>
+    <th:block th:replace="~{fragments/header :: right-nav('Пригласить в группу', null)}"></th:block>
+</header>
+<div class="container container-chats">
+    <th:block th:replace="~{fragments/chat-list :: chat-list(${chats})}"></th:block>
+    <div class="chat">
+        <div class="invite-container">
+            <p class="h1-reg">Пригласить друзей</p>
+            <form th:action="@{/group/{id}/members/add(id=${chat.id})}" method="post" class="ul-reg">
+                <ul>
+                    <li class="list-group-item item-reg">
+                        Пользователь
+                        <select name="userId" class="input-reg" required>
+                            <option value="" disabled selected>Выберите пользователя</option>
+                            <option th:each="user : ${users}" th:value="${user.id}" th:text="${user.username}"></option>
+                        </select>
+                    </li>
+                </ul>
+                <div class="btn-group">
+                    <button type="submit" class="btn btn-reg">Пригласить</button>
+                </div>
+            </form>
+            <div class="invite-link">
+                <p>Или поделитесь ссылкой:</p>
+                <input type="text" th:value="${inviteLink}" class="input-reg" readonly/>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

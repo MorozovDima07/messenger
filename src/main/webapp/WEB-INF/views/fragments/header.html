@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <link th:href="@{/static/site.css}" rel="stylesheet"/>
+    <meta charset="UTF-8">
+</head>
+<body>
+<!-- Левая навигация -->
+<th:block th:fragment="left-nav(activeTab)">
+    <nav class="navbar">
+        <ul class="navbar-nav">
+            <li th:class="${activeTab == 'all'} ? 'item-nav curr-item' : 'item-nav'">
+                <a th:href="@{/chats}" class="navbar-item"><img th:src="@{/static/icons/all-messages.svg}"/></a>
+            </li>
+            <li th:class="${activeTab == 'direct'} ? 'item-nav curr-item' : 'item-nav'">
+                <a th:href="@{/direct}" class="navbar-item"><img th:src="@{/static/icons/direct-messages.svg}"/></a>
+            </li>
+            <li th:class="${activeTab == 'group'} ? 'item-nav curr-item' : 'item-nav'">
+                <a th:href="@{/group}" class="navbar-item"><img th:src="@{/static/icons/groups.svg}"/></a>
+            </li>
+            <li th:class="${activeTab == 'settings'} ? 'item-nav curr-item' : 'item-nav'">
+                <a th:href="@{/settings}" class="navbar-item"><img th:src="@{/static/icons/settings-icon.svg}"/></a>
+            </li>
+        </ul>
+    </nav>
+</th:block>
+
+<!-- Правая навигация -->
+<th:block th:fragment="right-nav(title, settingsUrl)">
+    <nav class="navbar-right">
+        <ul class="navbar-right-nav">
+            <li class="item-nav-right cont-all">
+                <ul class="cont-info">
+                    <li class="cont-name" th:text="${title}"></li>
+                </ul>
+            </li>
+            <li class="item-nav-right set-nav" th:if="${settingsUrl}">
+                <a th:href="@{${settingsUrl}}" class="navbar-item"><img th:src="@{/static/icons/settings.svg}"/></a>
+            </li>
+        </ul>
+    </nav>
+</th:block>
+</body>
+</html>

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Profile - Messenger</title>
+    <link th:href="@{/static/site.css}" rel="stylesheet"/>
+</head>
+<body>
+<header>
+    <th:block th:replace="~{fragments/header :: left-nav('settings')}"></th:block>
+    <th:block th:replace="~{fragments/header :: right-nav('Профиль', null)}"></th:block>
+</header>
+<div class="container container-reg">
+    <p class="h1-reg">Профиль</p>
+    <form th:action="@{/profile}" method="post" class="ul-reg">
+        <ul>
+            <li class="list-group-item item-reg">Email<input type="email" name="email" th:value="${user.email}" class="input-reg" readonly/></li>
+            <li class="list-group-item item-reg">Имя<input type="text" name="username" th:value="${user.username}" class="input-reg"/></li>
+        </ul>
+        <div class="btn-group">
+            <button type="submit" class="btn btn-reg">Сохранить</button>
+        </div>
+    </form>
+</div>
+</body>
+</html>

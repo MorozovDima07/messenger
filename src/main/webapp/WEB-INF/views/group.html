@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Group Chats - Messenger</title>
+    <link th:href="@{/static/site.css}" rel="stylesheet"/>
+</head>
+<body>
+<header>
+    <th:block th:replace="~{fragments/header :: left-nav('group')}"></th:block>
+    <th:block th:replace="~{fragments/header :: right-nav(${chat != null ? chat.name : 'Групповые чаты'}, ${chat != null ? '/group-set?id=' + chat.id : null})}"></th:block>
+</header>
+<div class="container container-chats">
+    <th:block th:replace="~{fragments/chat-list :: chat-list(${chats})}"></th:block>
+    <div th:if="${chat == null}" class="start-chat">
+        <img th:src="@{/static/icons/start-chat.svg}"/>
+        <p>Выберите чат и начните общение!</p>
+    </div>
+    <div th:if="${chat != null}" class="chat">
+        <div class="div-messages">
+            <ul class="messages">
+                <li th:each="message : ${messages}" th:class="${message.senderId == currentUserId} ? 'message user-send' : 'message'">
+                    <div th:if="${!message.userSend}" class="circle5"><img th:src="@{/static/icons/user.svg}"/></div>
+                    <div class="message" th:classappend="${message.senderId == currentUserId} ? '' : 'message-with-ava'">
+                        <div class="user-name" th:text="${message.senderUsername}"></div>
+                        <span th:text="${message.content}"></span>
+                        <div class="date-last-mess mess-date">
+                            <img th:if="${message.read}" th:src="@{/static/icons/read.svg}"/>
+                            <img th:unless="${message.read}" th:src="@{/static/icons/unread.svg}"/>
+                            <p th:text="${message.date}"></p>
+                        </div>
+                    </div>
+                </li>
+            </ul>
+        </div>
+        <div class="send-message">
+            <form th:action="@{/group/{id}/send(id=${chat.id})}" method="post" class="chat-send">
+                <a href="#" class="chat-list-item chat-list-item-sendfile"><img th:src="@{/static/icons/attach.svg}"/></a>
+                <input type="text" name="content" class="input-mess" placeholder="Текст в поле ввода"/>
+                <button type="submit" class="chat-list-item chat-list-item-sendmess"><img th:src="@{/static/icons/send.svg}"/></button>
+            </form>
+        </div>
+    </div>
+</div>
+<script th:inline="javascript">
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelector('.chat-send').addEventListener('submit', function(event) {
+            const content = document.querySelector('.input-mess').value.trim();
+            if (!content) {
+                event.preventDefault(); // Блокируем отправку формы, если сообщение пустое
+            }
+        });
+    });
+</script>
+</body>
+</html>

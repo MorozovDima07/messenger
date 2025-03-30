@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>New Chat - Messenger</title>
+    <link th:href="@{/static/site.css}" rel="stylesheet"/>
+</head>
+<body>
+<header>
+    <th:block th:replace="~{fragments/header :: left-nav('all')}"></th:block>
+    <th:block th:replace="~{fragments/header :: right-nav('Новый чат', null)}"></th:block>
+</header>
+<div class="container container-chats">
+    <th:block th:replace="~{fragments/chat-list :: chat-list(${chats})}"></th:block>
+    <div class="chat">
+        <div class="new-chat-container">
+            <p class="h1-reg">Создать новый чат</p>
+            <div class="chat-type-selector">
+                <button id="directChatBtn" class="btn btn-reg" onclick="showDirectForm()">Личный чат</button>
+                <button id="groupChatBtn" class="btn btn-reg" onclick="showGroupForm()">Групповой чат</button>
+            </div>
+
+            <div id="directChatForm" class="chat-form" style="display: none;">
+                <form th:action="@{/chats/new/direct}" method="post" class="ul-reg">
+                    <ul>
+                        <li class="list-group-item item-reg">
+                            Email пользователя
+                            <input type="email" name="email" class="input-reg" placeholder="Введите email" required/>
+                        </li>
+                    </ul>
+                    <div class="btn-group">
+                        <button type="submit" class="btn btn-reg">Создать</button>
+                    </div>
+                </form>
+                <div th:if="${error}" th:text="${error}" class="error"></div>
+            </div>
+
+            <div id="groupChatForm" class="chat-form" style="display: none;">
+                <form th:action="@{/chats/new/group}" method="post" class="ul-reg">
+                    <ul>
+                        <li class="list-group-item item-reg">
+                            Название группы
+                            <input type="text" name="name" class="input-reg" placeholder="Введите название группы" required/>
+                        </li>
+                        <li class="list-group-item item-reg">
+                            Участники
+                            <div id="emailFields">
+                                <input type="email" name="emails" class="input-reg" placeholder="Введите email участника"/>
+                            </div>
+                            <button type="button" class="btn btn-reg" onclick="addEmailField()">Добавить участника</button>
+                        </li>
+                    </ul>
+                    <div class="btn-group">
+                        <button type="submit" class="btn btn-reg">Создать</button>
+                    </div>
+                </form>
+                <div th:if="${error}" th:text="${error}" class="error"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function showDirectForm() {
+        document.getElementById("directChatForm").style.display = "block";
+        document.getElementById("groupChatForm").style.display = "none";
+        document.getElementById("directChatBtn").classList.add("active-btn");
+        document.getElementById("groupChatBtn").classList.remove("active-btn");
+    }
+
+    function showGroupForm() {
+        document.getElementById("directChatForm").style.display = "none";
+        document.getElementById("groupChatForm").style.display = "block";
+        document.getElementById("directChatBtn").classList.remove("active-btn");
+        document.getElementById("groupChatBtn").classList.add("active-btn");
+    }
+
+    function addEmailField() {
+        const emailFields = document.getElementById("emailFields");
+        const newField = document.createElement("input");
+        newField.type = "email";
+        newField.name = "emails";
+        newField.className = "input-reg";
+        newField.placeholder = "Введите email участника";
+        newField.required = true;
+        emailFields.appendChild(newField);
+    }
+</script>
+</body>
+</html>

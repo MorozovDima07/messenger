@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="chat-list(chats)">
+    <div class="chat-list">
+        <div class="chat-list-search">
+            <a th:href="@{/chats/new}" class="chat-list-item chat-list-item-plus">
+                <div class="circle2"><img th:src="@{/static/icons/plus.svg}" alt="New Chat"/></div>
+            </a>
+            <input type="text" class="input-chat" placeholder="Поиск"/>
+            <a href="#" class="chat-list-item"><img th:src="@{/static/icons/search.svg}" alt="Search"/></a>
+        </div>
+        <ul class="chats-ul">
+            <li class="item-li" th:each="chat : ${chats}">
+                <a th:href="@{/chats/{id}(id=${chat.id})}" th:classappend="${chat.active} ? 'chats-item active-item' : 'chats-item'">
+                    <div class="circle">
+                        <th:block th:if="${chat.type == T(com.project.messenger.model.ChatType).GROUP}">
+                            <img th:src="@{/static/icons/group.svg}" alt="Group Chat"/>
+                        </th:block>
+                        <th:block th:if="${chat.type == T(com.project.messenger.model.ChatType).PERSONAL}">
+                            <img th:src="@{/static/icons/user.svg}" alt="Personal Chat"/>
+                        </th:block>
+                    </div>
+                    <ul class="mess-info">
+                        <li class="guy-mess" th:text="${chat.name}"></li>
+                        <li class="last-mess" th:text="${chat.lastMessage}"></li>
+                    </ul>
+                    <div class="date-last-mess">
+                        <div class="circle1" th:if="${chat.unreadCount > 0}" th:text="${chat.unreadCount}"></div>
+                        <p th:text="${chat.lastMessageDate}"></p>
+                    </div>
+                </a>
+            </li>
+        </ul>
+    </div>
+</th:block>
+</body>
+</html>

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Chat Files - Messenger</title>
+    <link th:href="@{/static/site.css}" rel="stylesheet"/>
+</head>
+<body>
+<header>
+    <th:block th:replace="~{fragments/header :: left-nav('group')}"></th:block>
+    <th:block th:replace="~{fragments/header :: right-nav('Файлы чата', null)}"></th:block>
+</header>
+<div class="container container-chats">
+    <th:block th:replace="~{fragments/chat-list :: chat-list(${chats})}"></th:block>
+    <div class="chat">
+        <div class="files-container">
+            <p class="h1-reg">Файлы чата</p>
+            <ul class="chats-ul">
+                <li class="item-li" th:each="file : ${files}">
+                    <div class="chats-item">
+                        <div class="circle"><img th:src="@{/static/icons/files.svg}"/></div>
+                        <ul class="mess-info">
+                            <li class="guy-mess" th:text="${file.fileName}"></li>
+                            <li class="last-mess" th:text="${file.uploadedAt}"></li>
+                        </ul>
+                        <a th:href="@{/file/{id}(id=${file.id})}" class="btn btn-reg">Скачать</a>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+</body>
+</html>

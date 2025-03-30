@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Blocked Users - Messenger</title>
+    <link th:href="@{/static/site.css}" rel="stylesheet"/>
+</head>
+<body>
+<header>
+    <th:block th:replace="~{fragments/header :: left-nav('settings')}"></th:block>
+    <th:block th:replace="~{fragments/header :: right-nav('Заблокированные пользователи', null)}"></th:block>
+</header>
+<div class="container container-chats">
+    <th:block th:replace="~{fragments/chat-list :: chat-list(${chats})}"></th:block>
+    <div class="chat">
+        <ul class="chats-ul">
+            <li class="item-li" th:each="blocked : ${blockedUsers}">
+                <div class="chats-item">
+                    <div class="circle"><img src="@{/static/icons/user.svg}"/></div>
+                    <ul class="mess-info">
+                        <li class="guy-mess" th:text="${blocked.username}"></li>
+                    </ul>
+                    <a th:href="@{/blocked-users/unblock(id=${blocked.id})}" class="btn btn-reg">Разблокировать</a>
+                </div>
+            </li>
+        </ul>
+    </div>
+</div>
+</body>
+</html>

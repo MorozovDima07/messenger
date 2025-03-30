@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Settings - Messenger</title>
+    <link th:href="@{/static/site.css}" rel="stylesheet"/>
+</head>
+<body>
+<header>
+    <th:block th:replace="~{fragments/header :: left-nav('settings')}"></th:block>
+    <th:block th:replace="~{fragments/header :: right-nav('Настройки', null)}"></th:block>
+</header>
+<div class="container container-chats">
+    <th:block th:replace="~{fragments/chat-list :: chat-list(${chats})}"></th:block>
+    <div class="chat">
+        <div class="add-set">
+            <div class="ava">
+                <div class="circle3"><img th:src="@{/static/icons/user.svg}"/></div>
+            </div>
+            <div class="cont-info cont-info-set">
+                <li class="cont-name" sec:authentication="name"></li>
+                <li class="cont-time" th:text="${user.lastActive}"></li>
+            </div>
+            <ul class="settings">
+                <li class="setting"><a th:href="@{/profile}" class="a-setting"><img th:src="@{/static/icons/user.svg}"/><div class="setting-text">Профиль</div></a></li>
+                <li class="setting"><a th:href="@{/blocked-users}" class="a-setting"><img th:src="@{/static/icons/block.svg}" style="width: 40px;"/><div class="setting-text">Заблокированные</div></a></li>
+                <li class="setting"><a href="#" class="a-setting"><img th:src="@{/static/icons/notifications.svg}"/><div class="setting-text">Уведомления</div></a></li>
+                <li class="logout-settings">
+                    <form th:action="@{/logout}" method="post" class="navbar-item">
+                        <button type="submit" class="logout-btn">Выйти</button>
+                    </form>
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+</body>
+</html>

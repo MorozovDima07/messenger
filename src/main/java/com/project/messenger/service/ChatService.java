@@ -77,6 +77,17 @@ public class ChatService {
     }
 
     @Transactional(readOnly = true)
+    public Chat getChatWithMembers(Long chatId, String email) {
+        User user = userService.findByEmail(email);
+        Chat chat = chatRepository.findChatWithMembersById(chatId)
+                .orElseThrow(() -> new IllegalArgumentException("Чат не найден"));
+        if (!chatMemberRepository.existsByChatIdAndUserId(chatId, user.getId())) {
+            throw new SecurityException("У вас нет доступа к этому чату");
+        }
+        return chat;
+    }
+
+    @Transactional(readOnly = true)
     public User getChatContact(Long chatId, String currentUserEmail) {
         Chat chat = getChat(chatId, currentUserEmail);
         return chat.getMembers().stream()
@@ -120,6 +131,7 @@ public class ChatService {
         chat.setName(name);
         chat.setType(ChatType.GROUP);
         chat.setCreatedBy(creator);
+        chat.setInviteLink(UUID.randomUUID().toString());
         chat = chatRepository.save(chat);
 
         addMember(chat, creator, true, NotificationLevel.ALL);
@@ -158,6 +170,14 @@ public class ChatService {
         removeMemberFromGroup(chatId, userId);
     }
 
+    @Transactional
+    public void deleteChat(Long chatId) {
+        Chat chat = chatRepository.findById(chatId)
+                .orElseThrow(() -> new IllegalArgumentException("Чат не найден"));
+        chatMemberRepository.deleteAllByChatId(chatId);
+        chatRepository.delete(chat);
+    }
+
     public List<MessageDTO> getMessages(Long chatId, Long currentUserId) {
         List<Message> messages = messageRepository.findByChatId(chatId);
         return messages.stream()
@@ -165,18 +185,20 @@ public class ChatService {
                 .collect(Collectors.toList());
     }
 
-    public List<MessageDTO> getMessagesAndIsCurrUserSent(Long chatId, String currentUserId) {
+    public List<MessageDTO> getMessagesAndIsCurrUserSent(Long chatId, String email) {
+        User currentUser = userService.findByEmail(email);
         List<Message> messages = messageRepository.findByChatId(chatId);
-        return messages.stream().map(m -> {
-            MessageDTO dto = new MessageDTO();
-            dto.setId(m.getId());
-            dto.setSenderUsername(m.getSender().getUsername());
-            dto.setContent(m.getContent());
-            dto.setDate(m.getTimestamp().format(DateTimeFormatter.ofPattern("dd.MM.yy HH:mm")));
-            dto.setUserSend(m.getSender().getEmail().equals(currentUserId));
-            dto.setRead(m.getReadBy().contains(userRepository.findByEmail(currentUserId).orElse(null)));
-            return dto;
-        }).collect(Collectors.toList());
+        return messages.stream()
+                .map(message -> new MessageDTO(
+                        message.getId(),
+                        message.getContent(),
+                        message.getSender().getUsername(),
+                        message.getTimestamp().toString(),
+                        message.isRead(),
+                        message.getSender().getId().equals(currentUser.getId()),
+                        message.getFiles()
+                ))
+                .collect(Collectors.toList());
     }
 
     @Transactional
@@ -185,25 +207,22 @@ public class ChatService {
         return messageService.sendMessage(chatId, content, sender.getId());
     }
 
-    public String generateInviteLink(Long chatId) {
+    public String getInviteLink(Long chatId) {
         Chat chat = chatRepository.findById(chatId)
                 .orElseThrow(() -> new IllegalArgumentException("Чат не найден"));
         if (chat.getType() != ChatType.GROUP) {
             throw new IllegalStateException("Пригласительные ссылки доступны только для групповых чатов");
         }
-        return "http://messenger.com/join?link=" + UUID.randomUUID().toString();
+        return "http://messenger.com/join?link=" + chat.getInviteLink();
     }
 
-    @Transactional
     public void joinGroupByLink(String link, Long userId) {
-        // Здесь должна быть реальная логика проверки ссылки
-        Long chatId = 1L;
-        Chat chat = chatRepository.findById(chatId)
-                .orElseThrow(() -> new IllegalArgumentException("Чат не найден"));
+        Chat chat = chatRepository.findByInviteLink(link)
+                .orElseThrow(() -> new IllegalArgumentException("Недействительная ссылка"));
         if (chat.getType() != ChatType.GROUP) {
             throw new IllegalStateException("Ссылка недействительна");
         }
-        addMemberToGroup(chatId, userId);
+        addMemberToGroup(chat.getId(), userId);
     }
 
     private void addMember(Chat chat, User user, boolean isAdmin, NotificationLevel notifications) {
@@ -251,11 +270,11 @@ public class ChatService {
         MessageDTO dto = new MessageDTO();
         dto.setId(message.getId());
         dto.setSenderUsername(message.getSender().getUsername());
-        dto.setSenderId(message.getSender().getId());
         dto.setContent(message.getContent());
         dto.setDate(message.getTimestamp().format(DateTimeFormatter.ofPattern("dd.MM.yy HH:mm")));
         dto.setUserSend(message.getSender().getId().equals(currentUserId));
         dto.setRead(message.isRead());
+        dto.setFiles(message.getFiles());
         return dto;
     }
 

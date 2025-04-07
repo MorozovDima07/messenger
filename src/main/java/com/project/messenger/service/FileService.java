@@ -30,9 +30,6 @@ public class FileService {
             throw new IllegalArgumentException("Файл не может быть пустым");
         }
         String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
-        if (fileName.trim().isEmpty()) {
-            throw new IllegalArgumentException("Имя файла не может быть пустым");
-        }
         Path filePath = Paths.get(UPLOAD_DIR, fileName);
         try {
             Files.createDirectories(filePath.getParent());
@@ -46,7 +43,11 @@ public class FileService {
         fileEntity.setFileName(file.getOriginalFilename());
         fileEntity.setFilePath(filePath.toString());
         fileEntity.setUploadedAt(LocalDateTime.now());
-        return fileRepository.save(fileEntity);
+        fileEntity = fileRepository.save(fileEntity);
+
+        // Добавляем файл в список files сообщения
+        message.getFiles().add(fileEntity);
+        return fileEntity;
     }
 
     public File getFile(Long fileId) {

@@ -20,6 +20,8 @@ public class Chat {
     @Column(nullable = false)
     private ChatType type;
 
+    private String inviteLink;
+
     private String name;
 
     @NotNull(message = "Создатель чата обязателен")

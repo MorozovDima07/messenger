@@ -618,3 +618,12 @@ select[multiple] {
     display: block;
     margin-bottom: 10px;
 }
+
+.profile-set{
+    width: 100%;
+    min-height: 100%;
+}
+
+.profile{
+    height: 100%;
+}

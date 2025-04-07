@@ -40,7 +40,7 @@ public class SecurityConfig {
                         .permitAll()
                 )
                 .csrf(csrf -> csrf
-                        .ignoringRequestMatchers("/login", "/register")
+                        .ignoringRequestMatchers("/login", "/register", "/chats/**") // Отключаем CSRF для /chats/**
                 );
         return http.build();
     }

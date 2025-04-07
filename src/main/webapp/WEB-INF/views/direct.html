@@ -25,15 +25,16 @@
                     <div class="message" th:class="message-without-ava">
                         <div class="user-name" th:text="${message.senderUsername}"></div>
                         <span th:text="${message.content}"></span>
+                        <div th:if="${message.files != null and !message.files.isEmpty()}">
+                            <div th:each="file : ${message.files}">
+                                <a th:href="@{/file/{id}(id=${file.id})}" th:text="${file.fileName}"></a>
+                            </div>
+                        </div>
                         <div class="date-last-mess mess-date">
-                            <img th:if="${message.userSend} and ${message.read}"
-                                 th:src="@{/static/icons/read.svg}"/>
-                            <img th:if="${message.userSend} and ${!message.read}"
-                                 th:src="@{/static/icons/unread.svg}"/>
-                            <img th:if="${!message.userSend} and ${message.read}"
-                                 th:src="@{/static/icons/read.svg}"/>
-                            <img th:if="${!message.userSend} and ${!message.read}"
-                                 th:src="@{/static/icons/unread.svg}"/>
+                            <img th:if="${message.userSend} and ${message.read}" th:src="@{/static/icons/read.svg}"/>
+                            <img th:if="${message.userSend} and ${!message.read}" th:src="@{/static/icons/unread.svg}"/>
+                            <img th:if="${!message.userSend} and ${message.read}" th:src="@{/static/icons/read.svg}"/>
+                            <img th:if="${!message.userSend} and ${!message.read}" th:src="@{/static/icons/unread.svg}"/>
                             <p th:text="${message.date}"></p>
                         </div>
                     </div>
@@ -41,8 +42,11 @@
             </ul>
         </div>
         <div class="send-message">
-            <form th:action="@{/chats/{id}/send(id=${chat.id})}" method="post" class="chat-send">
-                <a href="#" class="chat-list-item chat-list-item-sendfile"><img th:src="@{/static/icons/attach.svg}"/></a>
+            <form th:action="@{/chats/{id}/send(id=${chat.id})}" method="post" enctype="multipart/form-data" class="chat-send">
+                <label class="chat-list-item chat-list-item-sendfile">
+                    <img th:src="@{/static/icons/attach.svg}"/>
+                    <input type="file" name="file" style="display: none;" onchange="this.parentElement.querySelector('img').style.opacity='1';"/>
+                </label>
                 <input type="text" name="content" class="input-mess" placeholder="Текст в поле ввода"/>
                 <button type="submit" class="chat-list-item chat-list-item-sendmess"><img th:src="@{/static/icons/send.svg}"/></button>
             </form>
@@ -53,8 +57,9 @@
     document.addEventListener('DOMContentLoaded', function() {
         document.querySelector('.chat-send').addEventListener('submit', function(event) {
             const content = document.querySelector('.input-mess').value.trim();
-            if (!content) {
-                event.preventDefault(); // Блокируем отправку формы, если сообщение пустое
+            const file = document.querySelector('input[type="file"]').files[0];
+            if (!content && !file) {
+                event.preventDefault(); // Блокируем отправку, если нет текста и файла
             }
         });
     });

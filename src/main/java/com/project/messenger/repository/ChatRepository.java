@@ -19,4 +19,7 @@ public interface ChatRepository extends JpaRepository<Chat, Long> {
             "AND m1.user.id = :userId1 AND m2.user.id = :userId2 " +
             "AND (SELECT COUNT(m) FROM ChatMember m WHERE m.chat.id = c.id) = 2")
     Optional<Chat> findPersonalChatBetweenUsers(@Param("userId1") Long userId1, @Param("userId2") Long userId2);
+    @Query("SELECT c FROM Chat c JOIN FETCH c.members WHERE c.id = :id")
+    Optional<Chat> findChatWithMembersById(@Param("id") Long id);
+    Optional<Chat> findByInviteLink(String inviteLink);
 }

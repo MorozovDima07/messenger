@@ -46,7 +46,7 @@
             </div>
             <ul class="settings">
                 <li class="setting">
-                    <a th:href="@{/direct/{id}/edit(id=${chat.id})}" class="a-setting">
+                    <a th:href="@{/group/{id}/edit(id=${chat.id})}" class="a-setting">
                         <img th:src="@{/static/icons/settings-icon.svg}"/>
                         <div class="setting-text">Настройки</div>
                     </a>
@@ -61,20 +61,20 @@
                     </form>
                 </li>
                 <li class="setting">
-                    <a th:href="@{/direct/{id}/files(id=${chat.id})}" class="a-setting">
+                    <a th:href="@{/chat/{id}/files(id=${chat.id})}" class="a-setting">
                         <img th:src="@{/static/icons/files.svg}"/>
                         <div class="setting-text">Файлы</div>
                     </a>
                 </li>
                 <li class="setting">
-                    <a th:href="@{/direct/{id}/block(id=${chat.id})}" class="a-setting">
-                        <img th:src="@{/static/icons/block.svg}"/>
-                        <div class="setting-text">Заблокировать</div>
+                    <a th:href="@{/group/{id}/invite(id=${chat.id})}" class="a-setting">
+                        <img th:src="@{/static/icons/plus.svg}"/>
+                        <div class="setting-text">Добавить участников</div>
                     </a>
                 </li>
                 <li class="setting">
-                    <a th:href="@{/direct/{id}/delete(id=${chat.id})}" class="a-setting">
-                        <img th:src="@{/static/icons/delete.svg}"/>
+                    <a th:href="@{/chats/{id}/delete(id=${chat.id})}" class="a-setting">
+                        <img th:src="@{/static/icons/trash.svg}"/>
                         <div class="setting-text">Удалить чат</div>
                     </a>
                 </li>

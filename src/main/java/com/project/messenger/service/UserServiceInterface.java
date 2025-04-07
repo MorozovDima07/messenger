@@ -1,5 +1,6 @@
 package com.project.messenger.service;
 
+import com.project.messenger.model.BlockedUser;
 import com.project.messenger.model.NotificationLevel;
 import com.project.messenger.model.User;
 import com.project.messenger.model.UserSettings;
@@ -17,7 +18,7 @@ public interface UserServiceInterface extends UserDetailsService {
     UserSettings getUserSettings(Long userId);
     void blockUser(Long userId, Long blockedUserId);
     void unblockUser(Long userId, Long blockedUserId);
-    List<User> getBlockedUsers(Long userId);
+    List<BlockedUser> getBlockedUsers(Long userId);
     boolean isBlocked(Long userId, Long targetUserId);
     UserDetails loadUserByUsername(String email);
     List<User> getAllUsers();

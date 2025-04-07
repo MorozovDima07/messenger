@@ -1,18 +1,23 @@
 package com.project.messenger.controller;
 
-import com.project.messenger.model.Chat;
-import com.project.messenger.model.ChatMember;
-import com.project.messenger.model.NotificationLevel;
-import com.project.messenger.model.User;
-import com.project.messenger.service.ChatService;
-import com.project.messenger.service.UserService;
-import com.project.messenger.service.UserServiceInterface;
+import com.project.messenger.model.*;
+import com.project.messenger.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.net.MalformedURLException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -21,6 +26,12 @@ public class ChatSettingsController {
 
     @Autowired
     private ChatService chatService;
+
+    @Autowired
+    private FileService fileService;
+
+    @Autowired
+    private MessageService messageService;
 
     @Autowired
     private UserServiceInterface userService;
@@ -46,9 +57,9 @@ public class ChatSettingsController {
         return "direct-set";
     }
 
-    @PostMapping("/chats/{id}/block")
+    @PostMapping("/direct/{id}/block")
     public String blockUser(@PathVariable("id") Long id, Authentication auth) {
-        Chat chat = chatService.getChat(id, auth.getName());
+        Chat chat = chatService.getChatWithMembers(id, auth.getName());
         Long blockedUserId = chat.getMembers().stream()
                 .filter(m -> !m.getUser().getEmail().equals(auth.getName()))
                 .findFirst()
@@ -62,8 +73,11 @@ public class ChatSettingsController {
     public String groupSettings(@RequestParam("id") Long id, Model model, Authentication auth) {
         User currentUser = userService.findByEmail(auth.getName());
         Chat chat = chatService.getChat(id, auth.getName());
+        ChatMember currentMember = chatService.getChatMember(id, currentUser.getEmail());
+
         model.addAttribute("chat", chat);
-        model.addAttribute("messages", chatService.getMessages(id,currentUser.getId()));
+        model.addAttribute("currentMember", currentMember);
+        model.addAttribute("messages", chatService.getMessages(id, currentUser.getId()));
         model.addAttribute("chats", chatService.getGroupChats(auth.getName()));
         return "group-set";
     }
@@ -88,8 +102,16 @@ public class ChatSettingsController {
     }
 
     @PostMapping("/group/{id}/members/add")
-    public String addMember(@PathVariable("id") Long id, @RequestParam("userId") Long userId, Authentication auth) {
-        chatService.addMemberToGroup(id, userId);
+    public String addMembers(@PathVariable("id") Long id, @RequestParam("emails") List<String> emails, Authentication auth) {
+        for (String email : emails) {
+            if (email != null && !email.trim().isEmpty()) {
+                User userToAdd = userService.findByEmail(email.trim());
+                if (userToAdd == null) {
+                    return "redirect:/group-set?id=" + id + "&error=user_not_found";
+                }
+                chatService.addMemberToGroup(id, userToAdd.getId());
+            }
+        }
         return "redirect:/group-set?id=" + id;
     }
 
@@ -101,7 +123,8 @@ public class ChatSettingsController {
 
     @PostMapping("/group/{id}/leave")
     public String leaveGroup(@PathVariable("id") Long id, Authentication auth) {
-        chatService.leaveGroup(id, userService.findByEmail(auth.getName()).getId());
+        User currentUser = userService.findByEmail(auth.getName());
+        chatService.leaveGroup(id, currentUser.getId());
         return "redirect:/chats";
     }
 
@@ -109,30 +132,41 @@ public class ChatSettingsController {
     public String inviteToGroup(@PathVariable("id") Long id, Model model, Authentication auth) {
         User currentUser = userService.findByEmail(auth.getName());
         Chat chat = chatService.getChat(id, auth.getName());
-        List<User> users = userService.getAllUsers().stream()
-                .filter(user -> !user.getId().equals(currentUser.getId()))
-                .filter(user -> !chatService.getChat(id, auth.getName()).getMembers().stream()
-                        .anyMatch(m -> m.getUser().getId().equals(user.getId())))
-                .collect(Collectors.toList());
-        String link = chatService.generateInviteLink(id);
+        String link = chatService.getInviteLink(id);
         model.addAttribute("chat", chat);
-        model.addAttribute("users", users);
         model.addAttribute("inviteLink", link);
         model.addAttribute("chats", chatService.getGroupChats(auth.getName()));
         return "invite";
     }
 
-    @GetMapping("/group/{id}/link")
-    public String getInviteLink(@PathVariable("id") Long id, Model model) {
-        String link = chatService.generateInviteLink(id);
-        model.addAttribute("inviteLink", link);
-        return "invite-link";
-    }
-
     @GetMapping("/join")
     public String joinGroup(@RequestParam("link") String link, Authentication auth) {
-        chatService.joinGroupByLink(link, userService.findByEmail(auth.getName()).getId());
+        User user = userService.findByEmail(auth.getName());
+        chatService.joinGroupByLink(link, user.getId());
         return "redirect:/group";
+    }
+
+    @PostMapping("/chats/{id}/delete")
+    public String deleteChat(@PathVariable("id") Long id, Authentication auth) {
+        User currentUser = userService.findByEmail(auth.getName());
+        ChatMember member = chatService.getChatMember(id, currentUser.getEmail());
+        if (!member.isAdmin()) {
+            throw new IllegalStateException("Только администратор может удалить чат");
+        }
+        chatService.deleteChat(id);
+        return "redirect:/chats";
+    }
+
+    @GetMapping("/chat/{id}/files")
+    public String chatFiles(@PathVariable("id") Long id, Model model, Authentication auth) {
+        User currentUser = userService.findByEmail(auth.getName());
+        Chat chat = chatService.getChat(id, auth.getName());
+        List<File> files = fileService.getChatFiles(id);
+
+        model.addAttribute("chat", chat);
+        model.addAttribute("files", files);
+        model.addAttribute("chats", chatService.getGroupChats(auth.getName()));
+        return "chat-files";
     }
 
     @PostMapping("/direct/{id}/toggle-notifications")
@@ -144,7 +178,6 @@ public class ChatSettingsController {
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("Пользователь не найден"));
 
-        // Переключение уведомлений
         if (currentMember.getNotifications() == NotificationLevel.ALL) {
             currentMember.setNotifications(NotificationLevel.NONE);
         } else {

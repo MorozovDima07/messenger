@@ -49,7 +49,7 @@
                 <li class="li-setting"><img th:src="@{/static/icons/email.svg}"/><div class="setting-text" th:text="${contact.email}"></div></li>
                 <li class="setting">
                     <a th:href="@{/direct/{id}/info(id=${chat.id})}" class="a-setting">
-                        <img th:src="@{/static/icons/user-info.svg}"/>
+                        <img th:src="@{/static/icons/info.svg}"/>
                         <div class="setting-text">Информация о пользователе</div>
                     </a>
                 </li>
@@ -63,7 +63,7 @@
                     </form>
                 </li>
                 <li class="setting">
-                    <a th:href="@{/direct/{id}/files(id=${chat.id})}" class="a-setting">
+                    <a th:href="@{/chats/{id}/files(id=${chat.id})}" class="a-setting">
                         <img th:src="@{/static/icons/files.svg}"/>
                         <div class="setting-text">Файлы</div>
                     </a>
@@ -81,9 +81,19 @@
                     </a>
                 </li>
                 <li class="setting">
-                    <a th:href="@{/direct/{id}/block(id=${chat.id})}" class="a-setting">
+                    <form th:action="@{/direct/{id}/block(id=${chat.id})}" method="post" class="a-setting">
                         <img th:src="@{/static/icons/block.svg}"/>
-                        <div class="setting-text">Заблокировать</div>
+                        <button type="submit" class="setting-text">Заблокировать</button>
+                    </form>
+                </li>
+                <li class="setting" th:if="${currentMember != null}">
+                    <a th:if="${currentMember.isAdmin}" th:href="@{/chats/{id}/delete(id=${chat.id})}" class="a-setting">
+                        <img th:src="@{/static/icons/trash.svg}"/>
+                        <div class="setting-text">Удалить чат</div>
+                    </a>
+                    <a th:unless="${currentMember.isAdmin}" th:href="@{/group/{id}/leave(id=${chat.id})}" class="a-setting">
+                        <img th:src="@{/static/icons/leave.svg}"/>
+                        <div class="setting-text">Покинуть чат</div>
                     </a>
                 </li>
             </ul>

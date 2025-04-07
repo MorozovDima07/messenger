@@ -140,11 +140,8 @@ public class UserService implements UserServiceInterface {
     }
 
 
-    public List<User> getBlockedUsers(Long userId) {
-        List<BlockedUser> blockedUsers = blockedUserRepository.findByUserId(userId);
-        return blockedUsers.stream()
-                .map(BlockedUser::getBlockedUser)
-                .collect(Collectors.toList());
+    public List<BlockedUser> getBlockedUsers(Long userId) {
+        return blockedUserRepository.findByUserIdWithBlockedUser(userId);
     }
 
 

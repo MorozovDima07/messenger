@@ -19,9 +19,11 @@
                 <div class="chats-item">
                     <div class="circle"><img src="@{/static/icons/user.svg}"/></div>
                     <ul class="mess-info">
-                        <li class="guy-mess" th:text="${blocked.username}"></li>
+                        <li class="guy-mess" th:text="${blocked.blockedUser.username}"></li>
                     </ul>
-                    <a th:href="@{/blocked-users/unblock(id=${blocked.id})}" class="btn btn-reg">Разблокировать</a>
+                    <form th:action="@{/blocked-users/unblock(id=${blocked.blockedUser.id})}" method="post" class="btn btn-reg">
+                        <button type="submit" class="btn btn-reg">Разблокировать</button>
+                    </form>
                 </div>
             </li>
         </ul>

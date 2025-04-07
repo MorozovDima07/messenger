@@ -16,26 +16,38 @@
     <div class="chat">
         <div class="invite-container">
             <p class="h1-reg">Пригласить друзей</p>
+            <div class="invite-link">
+                <p>Поделитесь ссылкой:</p>
+                <input type="text" th:value="${inviteLink}" class="input-reg" readonly/>
+                <button class="btn btn-reg" onclick="navigator.clipboard.writeText('${inviteLink}')">Копировать ссылку</button>
+            </div>
             <form th:action="@{/group/{id}/members/add(id=${chat.id})}" method="post" class="ul-reg">
                 <ul>
                     <li class="list-group-item item-reg">
-                        Пользователь
-                        <select name="userId" class="input-reg" required>
-                            <option value="" disabled selected>Выберите пользователя</option>
-                            <option th:each="user : ${users}" th:value="${user.id}" th:text="${user.username}"></option>
-                        </select>
+                        Участники
+                        <div id="emailFields">
+                            <input type="email" name="emails" class="input-reg" placeholder="Введите email участника"/>
+                        </div>
+                        <button type="button" class="btn btn-reg" onclick="addEmailField()">Добавить участника</button>
                     </li>
                 </ul>
                 <div class="btn-group">
                     <button type="submit" class="btn btn-reg">Пригласить</button>
                 </div>
             </form>
-            <div class="invite-link">
-                <p>Или поделитесь ссылкой:</p>
-                <input type="text" th:value="${inviteLink}" class="input-reg" readonly/>
-            </div>
         </div>
     </div>
 </div>
+<script>
+    function addEmailField() {
+        const emailFields = document.getElementById("emailFields");
+        const newField = document.createElement("input");
+        newField.type = "email";
+        newField.name = "emails";
+        newField.className = "input-reg";
+        newField.placeholder = "Введите email участника";
+        emailFields.appendChild(newField);
+    }
+</script>
 </body>
 </html>

@@ -118,7 +118,7 @@ public class ChatSettingsController {
     @PostMapping("/group/{id}/members/remove")
     public String removeMember(@PathVariable("id") Long id, @RequestParam("userId") Long userId, Authentication auth) {
         chatService.removeMemberFromGroup(id, userId);
-        return "redirect:/group-set?id=" + id;
+        return "redirect:/group-list/" + id;
     }
 
     @PostMapping("/group/{id}/leave")
@@ -186,5 +186,19 @@ public class ChatSettingsController {
         chatService.saveChatMember(currentMember);
 
         return "redirect:/direct-set?id=" + id;
+    }
+
+    //Возможно излишние аттрибуты, подумать
+    @GetMapping("/group-list/{id}")
+    public String groupList(@PathVariable("id") Long id, Model model, Authentication auth) {
+        User currentUser = userService.findByEmail(auth.getName());
+        Chat chat = chatService.getChatWithMembers(id, auth.getName());
+        ChatMember currentMember = chatService.getChatMember(id, currentUser.getEmail());
+        model.addAttribute("chats", chatService.getGroupChats(auth.getName()));
+        model.addAttribute("currentUserId", currentUser.getId());
+        model.addAttribute("chatId", id);
+        model.addAttribute("members", chat.getMembers());
+        model.addAttribute("currentMemberId", currentMember.getId());
+        return "group-list";
     }
 }

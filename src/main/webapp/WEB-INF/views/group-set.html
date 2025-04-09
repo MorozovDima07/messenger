@@ -73,10 +73,22 @@
                     </a>
                 </li>
                 <li class="setting">
-                    <a th:href="@{/chats/{id}/delete(id=${chat.id})}" class="a-setting">
-                        <img th:src="@{/static/icons/trash.svg}"/>
-                        <div class="setting-text">Удалить чат</div>
+                    <a th:href="@{/group-list/{id}(id=${chat.id})}" class="a-setting">
+                        <img th:src="@{/static/icons/members.svg}"/>
+                        <div class="setting-text">Список участников</div>
                     </a>
+                </li>
+                <li th:if="${currentMember.isAdmin}" class="setting">
+                    <form th:action="@{/chats/{id}/delete(id=${chat.id})}" method="post" class="a-setting">
+                        <img th:src="@{/static/icons/trash.svg}"/>
+                        <button type="submit" class="setting-text">Удалить чат</button>
+                    </form>
+                </li>
+                <li th:if="${!currentMember.isAdmin}" class="setting">
+                    <form th:action="@{/group/{id}/leave(id=${chat.id})}" method="post" class="a-setting">
+                        <img th:src="@{/static/icons/leave.svg}"/>
+                        <button type="submit" class="setting-text">Покинуть</button>
+                    </form>
                 </li>
             </ul>
         </div>

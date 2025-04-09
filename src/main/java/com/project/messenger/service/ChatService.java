@@ -240,6 +240,14 @@ public class ChatService {
         addMemberToGroup(chat.getId(), userId);
     }
 
+    @Transactional(readOnly = true)
+    public List<ChatDTO> searchChatsByUserAndChatName(String email, String query) {
+        String normalizedQuery = query.trim().toLowerCase();
+        Long userId = userService.getUserIdByEmail(email);
+        List<Chat> chats = chatRepository.findByNameContainingAndUserId(normalizedQuery, userId);
+        return mapToChatDTOs(chats, userId);
+    }
+
     private void addMember(Chat chat, User user, boolean isAdmin, NotificationLevel notifications) {
         UserSettings settings = userSettingsRepository.findByUserId(user.getId()).orElse(null);
         NotificationLevel defaultLevel = (chat.getType() == ChatType.PERSONAL && settings != null)

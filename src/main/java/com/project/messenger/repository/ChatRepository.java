@@ -25,4 +25,12 @@ public interface ChatRepository extends JpaRepository<Chat, Long> {
 
     @Query("SELECT c FROM Chat c JOIN FETCH c.members m JOIN FETCH m.user WHERE c.id = :id")
     Optional<Chat> findChatWithMembersWithUsersById(@Param("id") Long id);
+
+    @Query("SELECT DISTINCT c FROM Chat c " +
+            "JOIN FETCH c.members m " +
+            "WHERE EXISTS (SELECT cm FROM ChatMember cm WHERE cm.chat.id = c.id AND cm.user.id = :userId) " +
+            "AND LOWER(c.name) LIKE LOWER(CONCAT('%', :query, '%'))")
+    List<Chat> findByNameContainingAndUserId(@Param("query") String query, @Param("userId") Long userId);
+
+//    List<Chat> findByNameContainingIgnoreCase(String query); //Метод для глобального поиска
 }

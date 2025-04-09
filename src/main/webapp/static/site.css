@@ -480,6 +480,12 @@ a{
     align-items: center;
 }
 
+.members{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
 .circle3{
     width: 140px;
     min-width: 140px;
@@ -506,7 +512,20 @@ a{
     margin-left: 10px;
 }
 
+.li-members{
+    display: flex;
+    align-items: center;
+    margin-top: 4px;
+    margin-left: 10px;
+}
+
 .a-setting{
+    display: flex;
+    align-items: center;
+    margin-top: 4px;
+}
+
+.a-members{
     display: flex;
     align-items: center;
     margin-top: 4px;
@@ -516,11 +535,24 @@ a{
     width: 12%;
 }
 
+.li-members img{
+    width: 12%;
+}
+
 .a-setting img{
     width: 30px;
 }
 
+.a-members img{
+    width: 30px;
+}
+
 .setting-text{
+    margin-left: 10px;
+    color: rgb(60, 60, 60);
+}
+
+.members-text{
     margin-left: 10px;
     color: rgb(60, 60, 60);
 }
@@ -626,4 +658,8 @@ select[multiple] {
 
 .profile{
     height: 100%;
+}
+
+.member-username{
+    margin-left: 10px;
 }

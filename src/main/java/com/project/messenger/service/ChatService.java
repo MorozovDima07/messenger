@@ -8,7 +8,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
@@ -80,6 +79,17 @@ public class ChatService {
     public Chat getChatWithMembers(Long chatId, String email) {
         User user = userService.findByEmail(email);
         Chat chat = chatRepository.findChatWithMembersById(chatId)
+                .orElseThrow(() -> new IllegalArgumentException("Чат не найден"));
+        if (!chatMemberRepository.existsByChatIdAndUserId(chatId, user.getId())) {
+            throw new SecurityException("У вас нет доступа к этому чату");
+        }
+        return chat;
+    }
+
+    @Transactional(readOnly = true)
+    public Chat getChatWithMembersUsersData(Long chatId, String email) {
+        User user = userService.findByEmail(email);
+        Chat chat = chatRepository.findChatWithMembersWithUsersById(chatId)
                 .orElseThrow(() -> new IllegalArgumentException("Чат не найден"));
         if (!chatMemberRepository.existsByChatIdAndUserId(chatId, user.getId())) {
             throw new SecurityException("У вас нет доступа к этому чату");
@@ -162,6 +172,11 @@ public class ChatService {
     public void removeMemberFromGroup(Long chatId, Long userId) {
         ChatMember member = chatMemberRepository.findByChatIdAndUserId(chatId, userId)
                 .orElseThrow(() -> new IllegalArgumentException("Участник не найден в чате"));
+
+        if (member.isAdmin()) {
+            throw new IllegalStateException("Нельзя удалить администратора чата");
+        }
+
         chatMemberRepository.delete(member);
     }
 

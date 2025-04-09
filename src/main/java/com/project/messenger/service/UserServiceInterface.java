@@ -22,4 +22,5 @@ public interface UserServiceInterface extends UserDetailsService {
     boolean isBlocked(Long userId, Long targetUserId);
     UserDetails loadUserByUsername(String email);
     List<User> getAllUsers();
+    boolean changePassword(String username, String currentPassword, String newPassword, String confirmPassword);
 }

@@ -23,7 +23,7 @@ public class JpaConfig {
         HikariConfig config = new HikariConfig();
         config.setJdbcUrl("jdbc:postgresql://localhost:5432/messenger");
         config.setUsername("postgres");
-        config.setPassword("Di/ma0480");
+        config.setPassword("qwer1234");
         config.setDriverClassName("org.postgresql.Driver");
         config.setMaximumPoolSize(10);
         config.setMinimumIdle(2);

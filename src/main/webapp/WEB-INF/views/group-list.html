@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Group Chats - Members list</title>
+    <link th:href="@{/static/site.css}" rel="stylesheet"/>
+</head>
+<body>
+<header>
+    <th:block th:replace="~{fragments/header :: left-nav('group')}"></th:block>
+    <th:block th:replace="~{fragments/header :: right-nav(${chat != null ? chat.name : 'Список участников чата'}, ${chat != null ? '/group-set?id=' + chat.id : null})}"></th:block>
+</header>
+<div class="container container-chats">
+    <th:block th:replace="~{fragments/chat-list :: chat-list(${chats})}"></th:block>
+    <ul class="members">
+        <li th:each="member : ${members}" th:class="li-members">
+            <span th:text="${member.user.email}"></span>
+            <span th:class="member-username" th:text="${member.user.username}"></span>
+            <form th:if="${!member.isAdmin}" th:action="@{/group/{id}/members/remove(id=${chatId})}" method="post" class="navbar-item">
+                <input type="hidden" name="userId" id="userId" th:value="${member.user.id}"/>
+                <button type="submit" class="logout-btn">Удалить</button>
+            </form>
+        </li>
+    </ul>
+</div>
+</body>
+</html>

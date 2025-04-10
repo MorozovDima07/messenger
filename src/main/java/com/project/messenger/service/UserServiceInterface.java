@@ -12,6 +12,7 @@ import java.util.List;
 public interface UserServiceInterface extends UserDetailsService {
     User registerUser(String email, String password, String username);
     User findByEmail(String email);
+    Long getUserIdByEmail(String email);
     void updateUser(User user);
     void updateUserSettings(Long userId, NotificationLevel personalChatNotifications,
                             NotificationLevel groupChatNotifications, String theme);
@@ -22,4 +23,5 @@ public interface UserServiceInterface extends UserDetailsService {
     boolean isBlocked(Long userId, Long targetUserId);
     UserDetails loadUserByUsername(String email);
     List<User> getAllUsers();
+    boolean changePassword(String username, String currentPassword, String newPassword, String confirmPassword);
 }

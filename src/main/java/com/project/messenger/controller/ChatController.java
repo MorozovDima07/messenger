@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+//@RequestMapping("/chats") //TODO Добавить это, чтобы в начале пути писалось /chats!
 @Controller
 public class ChatController {
 
@@ -33,8 +34,30 @@ public class ChatController {
     @Autowired
     private UserServiceInterface userService;
 
+
+    @GetMapping("/chats/search")
+    public String searchChats(@RequestParam("chatName") String chatName, Model model, Authentication auth) {
+        List<ChatDTO> chats = chatService.searchChatsByUserAndChatName(auth.getName(), chatName);
+        model.addAttribute("chats", chats);
+        model.addAttribute("chatName", chatName);
+        return "chats";
+    }
+
     @GetMapping("/chats")
     public String chats(Model model, Authentication auth) {
+//        List<ChatDTO> chats;
+//        String userName = auth.getName();
+
+//        if (chatName == null || chatName.isBlank()) {
+//            chats = chatService.getUserChats(userName);
+//        } else {
+//            chats = chatService.searchChatsByUserAndChatName(userName, chatName);
+//        }
+
+//        List<ChatDTO> chats = (chatName == null || chatName.isBlank())
+//                ? chatService.getUserChats(auth.getName())
+//                : chatService.searchChatsByUserAndChatName(userName, chatName);
+
         List<ChatDTO> chats = chatService.getUserChats(auth.getName());
         model.addAttribute("chats", chats);
         return "chats";

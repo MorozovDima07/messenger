@@ -8,7 +8,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
@@ -239,6 +238,14 @@ public class ChatService {
             throw new IllegalStateException("Ссылка недействительна");
         }
         addMemberToGroup(chat.getId(), userId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ChatDTO> searchChatsByUserAndChatName(String email, String query) {
+        String normalizedQuery = query.trim().toLowerCase();
+        Long userId = userService.getUserIdByEmail(email);
+        List<Chat> chats = chatRepository.findByNameContainingAndUserId(normalizedQuery, userId);
+        return mapToChatDTOs(chats, userId);
     }
 
     private void addMember(Chat chat, User user, boolean isAdmin, NotificationLevel notifications) {

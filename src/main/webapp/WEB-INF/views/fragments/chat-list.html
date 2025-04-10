@@ -7,8 +7,13 @@
             <a th:href="@{/chats/new}" class="chat-list-item chat-list-item-plus">
                 <div class="circle2"><img th:src="@{/static/icons/plus.svg}" alt="New Chat"/></div>
             </a>
-            <input type="text" class="input-chat" placeholder="Поиск"/>
-            <a href="#" class="chat-list-item"><img th:src="@{/static/icons/search.svg}" alt="Search"/></a>
+            <form th:action="@{/chats/search}" method="get">
+                <input type="text" class="input-chat" id="chatName" name="chatName" th:value="${chatName}" placeholder="Поиск чата..." required/>
+                <!-- Крестик для очистки -->
+                <a th:if="${chatName != null and !#strings.isEmpty(chatName)}"
+                   th:href="@{/chats}">X</a>
+                <button type="submit" class="chat-list-item"><img th:src="@{/static/icons/search.svg}" alt="Search"/></button>
+            </form>
         </div>
         <ul class="chats-ul">
             <li class="item-li" th:each="chat : ${chats}">

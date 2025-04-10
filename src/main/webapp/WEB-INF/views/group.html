@@ -20,9 +20,9 @@
     <div	th:if="${chat != null}" class="chat">
         <div class="div-messages">
             <ul class="messages">
-                <li th:each="message : ${messages}" th:class="${message.senderId == currentUserId} ? 'message user-send' : 'message'">
-                    <div th:if="${message.senderId != currentUserId}" class="circle5"><img th:src="@{/static/icons/user.svg}"/></div>
-                    <div class="message" th:classappend="${message.senderId == currentUserId} ? '' : 'message-with-ava'">
+                <li th:each="message : ${messages}" th:class="${message.userSend} ? 'message user-send' : 'message message-with-ava'">
+                    <div th:if="${!message.userSend}" class="circle5"><img th:src="@{/static/icons/user.svg}"/></div>
+                    <div class="message" th:class="${message.userSend} ? 'message-without-ava' : ''">
                         <div class="user-name" th:text="${message.senderUsername}"></div>
                         <span th:text="${message.content}"></span>
                         <div th:if="${message.files != null and !message.files.isEmpty()}">

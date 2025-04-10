@@ -11,7 +11,7 @@ import java.util.List;
 
 @Repository
 public interface MessageRepository extends JpaRepository<Message, Long> {
-    @Query("SELECT m FROM Message m LEFT JOIN FETCH m.readBy WHERE m.chat.id = :chatId")
+    @Query("SELECT m FROM Message m LEFT JOIN FETCH m.readBy LEFT JOIN FETCH m.files WHERE m.chat.id = :chatId")
     List<Message> findByChatId(@Param("chatId") Long chatId);
     List<Message> findByChatIdAndIsReadFalse(Long chatId);
     @Query("SELECT m FROM Message m WHERE m.chat.id = :chatId AND :user NOT MEMBER OF m.readBy")

@@ -29,8 +29,10 @@ public class FileService {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Файл не может быть пустым");
         }
+
         String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
         Path filePath = Paths.get(UPLOAD_DIR, fileName);
+
         try {
             Files.createDirectories(filePath.getParent());
             file.transferTo(filePath);
@@ -47,6 +49,7 @@ public class FileService {
 
         // Добавляем файл в список files сообщения
         message.getFiles().add(fileEntity);
+
         return fileEntity;
     }
 

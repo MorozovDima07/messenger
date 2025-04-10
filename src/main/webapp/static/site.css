@@ -144,6 +144,7 @@ button.btn-reg:hover {
 .container-chats{
     display: flex;
     min-height: 90vh;
+    max-height: 90vh;
 }
 
 .navbar-right{
@@ -601,7 +602,7 @@ a{
 }
 
 .message-without-ava{
-    margin-left: 60px;
+    margin-left: 0px;
 }
 
 .new-chat-container {

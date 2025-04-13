@@ -79,10 +79,21 @@ public class UserService implements UserServiceInterface {
                 .orElseThrow(() -> new UsernameNotFoundException("Пользователь с email " + email + " не найден"));
     }
 
+    public User findById(Long id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new UsernameNotFoundException("Пользователь с id " + id + " не найден"));
+    }
+
     public Long getUserIdByEmail(String email) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("Пользователь с email " + email + " не найден"));
         return user.getId();
+    }
+
+    public String getPasswordHashByEmail(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("Пользователь с email " + email + " не найден"));
+        return user.getPassword();
     }
 
     @Transactional
@@ -96,6 +107,7 @@ public class UserService implements UserServiceInterface {
 
         existingUser.setUsername(user.getUsername());
         existingUser.setEmailVisible(user.isEmailVisible());
+        existingUser.setAvatarPath(user.getAvatarPath());
         existingUser.setLastActive(LocalDateTime.now());
         userRepository.save(existingUser);
     }
@@ -161,21 +173,20 @@ public class UserService implements UserServiceInterface {
     }
 
     @Override
-    public boolean changePassword(String email, String currentPassword, String newPassword, String confirmPassword) {
+    public void changePassword(String email, String newPassword) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("Пользователь с таким email не найден: " + email));
 
-        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
-            return false;
-        }
-
-        if (!newPassword.equals(confirmPassword)) {
-            return false;
-        }
+//        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+//            return false;
+//        }
+//
+//        if (!newPassword.equals(confirmPassword)) {
+//            return false;
+//        }
 
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
-
-        return true;
+//        return true;
     }
 }

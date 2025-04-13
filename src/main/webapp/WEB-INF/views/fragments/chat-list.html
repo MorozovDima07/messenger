@@ -1,43 +1,52 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <body>
-<th:block th:fragment="chat-list(chats)">
+<th:block th:fragment="chat-list(chats, chatType)">
     <div class="chat-list">
         <div class="chat-list-search">
-            <a th:href="@{/chats/new}" class="chat-list-item chat-list-item-plus">
-                <div class="circle2"><img th:src="@{/static/icons/plus.svg}" alt="New Chat"/></div>
+            <a th:href="@{/chats/new}">
+                <div class="circleAddChat"><img th:src="@{/static/icons/plus.svg}" alt="New Chat"/></div>
             </a>
             <form th:action="@{/chats/search}" method="get" class="search-form">
-                <input type="text" class="input-chat" id="chatName" name="chatName" th:value="${chatName}" placeholder="Поиск чата..." required/>
-                <!-- Крестик для очистки -->
-                <a th:if="${chatName != null and !#strings.isEmpty(chatName)}" th:href="@{/chats}" class="chat-list-item">
-                    <img th:src="@{/static/icons/trash.svg}" alt="X"/>
+                <input type="hidden" id="chatType" name="chatType" th:value="${chatType}"/>
+                <input type="text" class="input-chat" id="chatName" name="chatName" th:value="${chatName}" placeholder="Поиск чата..."/>
+                <a class="clean-search" id="cleanSearch">
+                    <img th:src="@{/static/icons/leave.svg}" alt="X"/>
                 </a>
-                <button type="submit" class="chat-list-item"><img th:src="@{/static/icons/search.svg}" alt="Search"/></button>
+                <button type="submit" class="btn-without-style search-btn"><img th:src="@{/static/icons/search.svg}" alt="Search"/></button>
             </form>
         </div>
-        <ul class="chats-ul">
-            <li class="item-li" th:each="chat : ${chats}">
-                <a th:href="@{/chats/{id}(id=${chat.id})}" th:classappend="${chat.active} ? 'chats-item active-item' : 'chats-item'">
-                    <div class="circle">
-                        <th:block th:if="${chat.type == T(com.project.messenger.model.ChatType).GROUP}">
-                            <img th:src="@{/static/icons/group.svg}" alt="Group Chat"/>
-                        </th:block>
-                        <th:block th:if="${chat.type == T(com.project.messenger.model.ChatType).PERSONAL}">
-                            <img th:src="@{/static/icons/user.svg}" alt="Personal Chat"/>
-                        </th:block>
-                    </div>
-                    <ul class="mess-info">
-                        <li class="guy-mess" th:text="${chat.name}"></li>
-                        <li class="last-mess" th:text="${chat.lastMessage}"></li>
-                    </ul>
-                    <div class="date-last-mess">
-                        <div class="circle1" th:if="${chat.unreadCount > 0}" th:text="${chat.unreadCount}"></div>
-                        <p th:text="${chat.lastMessageDate}"></p>
-                    </div>
-                </a>
-            </li>
-        </ul>
+
+        <div class="scroll-wrapper">
+            <ul id="chatListItems" class="chats-ul">
+                <th:block th:fragment="chat-list-items">
+                    <th:block th:if="${#lists.isEmpty(chats)}">
+                        <li style="text-align: center; font-size: large;">Чаты не найдены</li>
+                    </th:block>
+                    <li class="item-li" th:each="chat : ${chats}">
+                        <a th:href="@{/chats/{id}(id=${chat.id})}" th:classappend="${chat.active} ? 'chats-item active-item' : 'chats-item'">
+                            <div class="circle">
+                                <th:block th:if="${chat.type == T(com.project.messenger.model.ChatType).GROUP}">
+                                    <img th:src="@{/static/icons/group.svg}" alt="Group Chat"/>
+                                </th:block>
+                                <th:block th:if="${chat.type == T(com.project.messenger.model.ChatType).PERSONAL}">
+                                    <img th:if="${chat.avatar != null}" th:src="@{${chat.avatar}}" alt="Avatar"/>
+                                    <img id="defaultAvatar" th:unless="${chat.avatar != null}" th:src="@{/static/icons/user.svg}" alt="Default Avatar"/>
+                                </th:block>
+                            </div>
+                            <ul class="mess-info">
+                                <li class="guy-mess" th:text="${chat.name}"></li>
+                                <li class="last-mess" th:text="${chat.lastMessage}"></li>
+                            </ul>
+                            <div class="date-last-mess">
+                                <div class="circleUnreadCount" th:if="${chat.unreadCount > 0}" th:text="${chat.unreadCount}"></div>
+                                <p th:text="${chat.lastMessageDate}"></p>
+                            </div>
+                        </a>
+                    </li>
+                </th:block>
+            </ul>
+        </div>
     </div>
 </th:block>
 </body>

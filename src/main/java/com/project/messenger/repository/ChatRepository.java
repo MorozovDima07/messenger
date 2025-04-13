@@ -26,11 +26,25 @@ public interface ChatRepository extends JpaRepository<Chat, Long> {
     @Query("SELECT c FROM Chat c JOIN FETCH c.members m JOIN FETCH m.user WHERE c.id = :id")
     Optional<Chat> findChatWithMembersWithUsersById(@Param("id") Long id);
 
-    @Query("SELECT DISTINCT c FROM Chat c " +
+    @Query("SELECT c FROM Chat c " +
             "JOIN FETCH c.members m " +
             "WHERE EXISTS (SELECT cm FROM ChatMember cm WHERE cm.chat.id = c.id AND cm.user.id = :userId) " +
             "AND LOWER(c.name) LIKE LOWER(CONCAT('%', :query, '%'))")
-    List<Chat> findByNameContainingAndUserId(@Param("query") String query, @Param("userId") Long userId);
+    //TODO сортировка остаётся при пустом поиске, по идее надо сортировать по времени получения сообщения
+//  "AND LOWER(c.name) LIKE LOWER(CONCAT('%', :query, '%')) ORDER BY LOWER(c.name)")
+    List<Chat> findGroupChatsByName(@Param("userId") Long userId, @Param("query") String query);
 
-//    List<Chat> findByNameContainingIgnoreCase(String query); //Метод для глобального поиска
+    @Query("""
+    SELECT c FROM Chat c
+    JOIN ChatMember cm1 ON cm1.chat = c
+    JOIN ChatMember cm2 ON cm2.chat = c
+    JOIN User u ON u = cm2.user
+    WHERE c.type = 'PERSONAL'
+      AND cm1.user.id = :userId
+      AND cm2.user.id != :userId
+      AND LOWER(u.username) LIKE LOWER(CONCAT('%', :query, '%'))
+    
+    """)
+    //ORDER BY LOWER(u.username)
+    List<Chat> findPersonalChatsByOtherUsername(@Param("userId") Long userId, @Param("query") String query);
 }

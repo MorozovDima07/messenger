@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public class ChangePasswordDTO {
-    @NotBlank(message = "Введите текущий пароль")
+    @NotBlank(message = "Введите старый пароль")
     private String currentPassword;
 
     @NotBlank(message = "Введите новый пароль")

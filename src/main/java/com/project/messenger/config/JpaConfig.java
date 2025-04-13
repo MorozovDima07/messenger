@@ -2,8 +2,10 @@ package com.project.messenger.config;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.PropertySource;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
@@ -16,19 +18,43 @@ import javax.sql.DataSource;
 @Configuration
 @EnableJpaRepositories(basePackages = "com.project.messenger.repository")
 @EnableTransactionManagement
+@PropertySource("classpath:application.properties")
 public class JpaConfig {
+    @Value("${db.url}")
+    private String jdbcUrl;
+
+    @Value("${db.username}")
+    private String username;
+
+    @Value("${db.password}")
+    private String password;
+
+    @Value("${db.driver}")
+    private String driverClassName;
+
+    @Value("${db.pool.maxSize}")
+    private int maxPoolSize;
+
+    @Value("${db.pool.minIdle}")
+    private int minIdle;
+
+    @Value("${db.pool.idleTimeout}")
+    private long idleTimeout;
+
+    @Value("${db.pool.maxLifetime}")
+    private long maxLifetime;
 
     @Bean
     public DataSource dataSource() {
         HikariConfig config = new HikariConfig();
-        config.setJdbcUrl("jdbc:postgresql://localhost:5432/messenger");
-        config.setUsername("postgres");
-        config.setPassword("qwer1234");
-        config.setDriverClassName("org.postgresql.Driver");
-        config.setMaximumPoolSize(10);
-        config.setMinimumIdle(2);
-        config.setIdleTimeout(30000);
-        config.setMaxLifetime(1800000);
+        config.setJdbcUrl(jdbcUrl);
+        config.setUsername(username);
+        config.setPassword(password);
+        config.setDriverClassName(driverClassName);
+        config.setMaximumPoolSize(maxPoolSize);
+        config.setMinimumIdle(minIdle);
+        config.setIdleTimeout(idleTimeout);
+        config.setMaxLifetime(maxLifetime);
         return new HikariDataSource(config);
     }
 

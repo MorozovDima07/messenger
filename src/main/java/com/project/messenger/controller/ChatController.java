@@ -2,14 +2,13 @@ package com.project.messenger.controller;
 
 import com.project.messenger.model.Chat;
 import com.project.messenger.model.ChatType;
-import com.project.messenger.model.Message;
 import com.project.messenger.model.User;
 import com.project.messenger.model.dto.ChatDTO;
 import com.project.messenger.model.dto.MessageDTO;
 import com.project.messenger.service.ChatService;
 import com.project.messenger.service.MessageService;
-import com.project.messenger.service.UserService;
 import com.project.messenger.service.UserServiceInterface;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
@@ -18,10 +17,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
-//@RequestMapping("/chats") //TODO Добавить это, чтобы в начале пути писалось /chats!
 @Controller
 public class ChatController {
 
@@ -34,30 +31,8 @@ public class ChatController {
     @Autowired
     private UserServiceInterface userService;
 
-
-    @GetMapping("/chats/search")
-    public String searchChats(@RequestParam("chatName") String chatName, Model model, Authentication auth) {
-        List<ChatDTO> chats = chatService.searchChatsByUserAndChatName(auth.getName(), chatName);
-        model.addAttribute("chats", chats);
-        model.addAttribute("chatName", chatName);
-        return "chats";
-    }
-
     @GetMapping("/chats")
     public String chats(Model model, Authentication auth) {
-//        List<ChatDTO> chats;
-//        String userName = auth.getName();
-
-//        if (chatName == null || chatName.isBlank()) {
-//            chats = chatService.getUserChats(userName);
-//        } else {
-//            chats = chatService.searchChatsByUserAndChatName(userName, chatName);
-//        }
-
-//        List<ChatDTO> chats = (chatName == null || chatName.isBlank())
-//                ? chatService.getUserChats(auth.getName())
-//                : chatService.searchChatsByUserAndChatName(userName, chatName);
-
         List<ChatDTO> chats = chatService.getUserChats(auth.getName());
         model.addAttribute("chats", chats);
         return "chats";
@@ -162,9 +137,10 @@ public class ChatController {
 
     @GetMapping("/chats/{id}")
     public String viewChat(@PathVariable("id") Long id, Model model, Authentication auth) {
+        User currentUser = userService.findByEmail(auth.getName());
         Chat chat = chatService.getChat(id, auth.getName());
         model.addAttribute("chat", chat);
-        List<MessageDTO> messages = chatService.getMessagesAndIsCurrUserSent(id, auth.getName());
+        List<MessageDTO> messages = chatService.getMessages(id, currentUser.getId());
         model.addAttribute("messages", messages);
 
         // Фильтруем чаты по типу текущего чата
@@ -174,7 +150,6 @@ public class ChatController {
                 .collect(Collectors.toList());
         model.addAttribute("chats", filteredChats);
 
-        User currentUser = userService.findByEmail(auth.getName());
         messageService.markMessagesAsRead(id, currentUser.getId());
 
         if (chat.getType() == ChatType.PERSONAL) {
@@ -182,5 +157,23 @@ public class ChatController {
         } else {
             return "group";
         }
+    }
+
+    @GetMapping("/chats/search")
+    public String searchChats(@RequestParam("chatName") String chatName,
+                              @RequestParam("chatType") String chatType,
+                              Model model, Authentication auth,
+                              HttpServletRequest request) {
+        ChatType type = null;
+        
+        if (!"ALL".equals(chatType)) {
+            type = ChatType.valueOf(chatType);
+        } 
+
+        List<ChatDTO> chats = chatService.searchChatsByType(auth.getName(), chatName, type);
+        model.addAttribute("chats", chats);
+        model.addAttribute("chatName", chatName);
+
+        return "fragments/chat-list :: chat-list-items";
     }
 }

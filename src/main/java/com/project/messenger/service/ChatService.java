@@ -5,6 +5,7 @@ import com.project.messenger.model.dto.ChatDTO;
 import com.project.messenger.model.dto.MessageDTO;
 import com.project.messenger.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,6 +14,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 public class ChatService {
@@ -62,6 +64,14 @@ public class ChatService {
                 .filter(chat -> chat.getType() == ChatType.GROUP)
                 .collect(Collectors.toList());
         return mapToChatDTOs(chats, user.getId());
+    }
+
+    @Transactional
+    public void updateChatName(Long chatId, String newName) {
+        Chat chat = chatRepository.findById(chatId)
+                .orElseThrow(() -> new IllegalArgumentException("Чат не найден"));
+        chat.setName(newName);
+        chatRepository.save(chat);
     }
 
     @Transactional(readOnly = true)
@@ -211,7 +221,8 @@ public class ChatService {
                         message.getTimestamp().toString(),
                         message.isRead(),
                         message.getSender().getId().equals(currentUser.getId()),
-                        message.getFiles()
+                        message.getFiles(),
+                        message.getSender().getAvatarPath()
                 ))
                 .collect(Collectors.toList());
     }
@@ -240,13 +251,44 @@ public class ChatService {
         addMemberToGroup(chat.getId(), userId);
     }
 
+//    @Transactional(readOnly = true)
+//    public List<ChatDTO> searchPersonalChatByName(String email, String query) {
+//        String normalizedQuery = query.trim().toLowerCase();
+//        Long userId = userService.getUserIdByEmail(email);
+//        List<Chat> chats = chatRepository.findGroupChatsByName(normalizedQuery, userId);
+//        return mapToChatDTOs(chats, userId);
+//    }
+//
+//    @Transactional(readOnly = true)
+//    public List<ChatDTO> searchGroupChatByName(String email, String query) {
+//        String normalizedQuery = query.trim().toLowerCase();
+//        Long userId = userService.getUserIdByEmail(email);
+//        List<Chat> chats = chatRepository.findPersonalChatsByOtherUsername(normalizedQuery, userId);
+//        return mapToChatDTOs(chats, userId);
+//    }
+
     @Transactional(readOnly = true)
-    public List<ChatDTO> searchChatsByUserAndChatName(String email, String query) {
+    public List<ChatDTO> searchChatsByType(String email, String query, @Nullable ChatType type) {
         String normalizedQuery = query.trim().toLowerCase();
         Long userId = userService.getUserIdByEmail(email);
-        List<Chat> chats = chatRepository.findByNameContainingAndUserId(normalizedQuery, userId);
+
+        List<Chat> chats;
+
+        if (type == null) {
+            chats = Stream.concat(
+                chatRepository.findPersonalChatsByOtherUsername(userId, normalizedQuery).stream(),
+                chatRepository.findGroupChatsByName(userId, normalizedQuery).stream()
+            ).toList();
+        } else {
+            chats = switch (type) {
+                case PERSONAL -> chatRepository.findPersonalChatsByOtherUsername(userId, normalizedQuery);
+                case GROUP -> chatRepository.findGroupChatsByName(userId, normalizedQuery);
+            };
+        }
+
         return mapToChatDTOs(chats, userId);
     }
+
 
     private void addMember(Chat chat, User user, boolean isAdmin, NotificationLevel notifications) {
         UserSettings settings = userSettingsRepository.findByUserId(user.getId()).orElse(null);
@@ -277,6 +319,15 @@ public class ChatService {
                 dto.setLastMessageDate(last.getTimestamp().format(DateTimeFormatter.ofPattern("dd.MM.yy HH:mm")));
                 dto.setUnreadCount(messageRepository.findUnreadByChatIdAndUser(chat.getId(), userRepository.findById(userId).get()).size());
             }
+            if (chat.getType() == ChatType.PERSONAL) {
+                ChatMember companion = chat.getMembers().stream()
+                        .filter(member -> !member.getUser().getId().equals(userId))
+                        .findFirst()
+                        .orElse(null);
+                dto.setAvatar(companion != null ? companion.getUser().getAvatarPath() : null);
+            } else {
+                dto.setAvatar(null);
+            }  //доделать для группового чата
             return dto;
         }).collect(Collectors.toList());
     }
@@ -298,6 +349,7 @@ public class ChatService {
         dto.setUserSend(message.getSender().getId().equals(currentUserId));
         dto.setRead(message.isRead());
         dto.setFiles(message.getFiles());
+        dto.setUserAvatar(message.getSender().getAvatarPath());
         return dto;
     }
 

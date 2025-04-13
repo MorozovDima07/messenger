@@ -9,6 +9,7 @@
 <body>
 <div class="container container-reg">
     <p class="h1-reg">Регистрация</p>
+    <p class="error" th:text="${error}"></p>
     <form th:action="@{/register}" method="post" class="ul-reg">
         <ul>
             <li class="list-group-item item-reg">
@@ -21,9 +22,9 @@
                 Имя<input type="text" name="username" class="input-reg" placeholder="Введите Ваше Имя" required/>
             </li>
         </ul>
-        <div class="btn-group">
-            <a th:href="@{/login}" class="btn btn-reg">Войти</a>
-            <button type="submit" class="btn btn-reg" style="margin-left: 80px;">Зарегистрироваться</button>
+        <div class="btn-group-two-equal-btns">
+            <a th:href="@{/login}" class="btn-reg">Войти</a>
+            <button type="submit" class="btn-reg">Зарегистрироваться</button>
         </div>
     </form>
 </div>

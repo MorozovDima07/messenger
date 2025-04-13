@@ -21,20 +21,21 @@
         <div class="div-messages">
             <ul class="messages">
                 <li th:each="message : ${messages}" th:class="${message.userSend} ? 'message user-send' : 'message message-with-ava'">
-                    <div th:if="${!message.userSend}" class="circle5"><img th:src="@{/static/icons/user.svg}"/></div>
-                    <div class="message" th:class="${message.userSend} ? 'message-without-ava' : ''">
+                    <div class="message-avatar" th:if="${!message.userSend}">
+                        <div class="circleSmallAvatar">
+                            <img th:if="${message.userAvatar != null}" th:src="@{${message.userAvatar}}" alt="Avatar"/>
+                            <img th:unless="${message.userAvatar != null}" th:src="@{/static/icons/user.svg}" alt="Default Avatar"/>
+                        </div>
+                    </div>
+                    <div th:class="${message.userSend} ? 'message-without-ava' : 'message-with-ava-files'">
                         <div class="user-name" th:text="${message.senderUsername}"></div>
                         <span th:text="${message.content}"></span>
-                        <div th:if="${message.files != null and !message.files.isEmpty()}">
-                            <div th:each="file : ${message.files}">
-                                <a th:href="@{/file/{id}(id=${file.id})}" th:text="${file.fileName}"></a>
-                            </div>
+                        <div class="file-list" th:if="${message.files != null and !message.files.isEmpty()}">
+                            <a th:each="file : ${message.files}" th:href="@{/file/{id}(id=${file.id})}" th:text="${file.fileName}" class="file-chip"></a>
                         </div>
                         <div class="date-last-mess mess-date">
-                            <img th:if="${message.userSend} and ${message.read}" th:src="@{/static/icons/read.svg}"/>
-                            <img th:if="${message.userSend} and ${!message.read}" th:src="@{/static/icons/unread.svg}"/>
-                            <img th:if="${!message.userSend} and ${message.read}" th:src="@{/static/icons/read.svg}"/>
-                            <img th:if="${!message.userSend} and ${!message.read}" th:src="@{/static/icons/unread.svg}"/>
+                            <img th:if="${message.read}" th:src="@{/static/icons/read.svg}"/>
+                            <img th:if="${!message.read}" th:src="@{/static/icons/unread.svg}"/>
                             <p th:text="${message.date}"></p>
                         </div>
                     </div>
@@ -42,27 +43,74 @@
             </ul>
         </div>
         <div class="send-message">
-            <form th:action="@{/chats/{id}/send(id=${chat.id})}" method="post" enctype="multipart/form-data" class="chat-send">
+            <form th:action="@{/chats/{id}/send(id=${chat.id})}" method="post" enctype="multipart/form-data" class="chat-send" id="chatSendForm">
                 <label class="chat-list-item chat-list-item-sendfile">
-                    <img th:src="@{/static/icons/attach.svg}"/>
-                    <input type="file" name="file" style="display: none;" onchange="this.parentElement.querySelector('img').style.opacity='1';"/>
+                    <img th:src="@{/static/icons/attach.svg}" class="attach-icon"/>
+                    <input type="file" name="tempFiles" multiple style="display: none;" onchange="addFiles(this)"/>
                 </label>
-                <input type="text" name="content" class="input-mess" placeholder="Текст в поле ввода"/>
-                <button type="submit" class="chat-list-item chat-list-item-sendmess"><img th:src="@{/static/icons/send.svg}"/></button>
+                <div class="message-input-wrapper">
+                    <input type="text" name="content" class="input-mess" placeholder="Текст в поле ввода"/>
+                    <div class="file-preview" id="filePreview"></div>
+                </div>
+                <button type="submit" class="chat-list-item chat-list-item-sendmess">
+                    <img th:src="@{/static/icons/send.svg}"/>
+                </button>
             </form>
         </div>
     </div>
 </div>
 <script th:inline="javascript">
+    let accumulatedFiles = [];
+
     document.addEventListener('DOMContentLoaded', function() {
-        document.querySelector('.chat-send').addEventListener('submit', function(event) {
+        const form = document.getElementById('chatSendForm');
+        form.addEventListener('submit', function(event) {
             const content = document.querySelector('.input-mess').value.trim();
-            const file = document.querySelector('input[type="file"]').files[0];
-            if (!content && !file) {
-                event.preventDefault(); // Блокируем отправку, если нет текста и файла
+            if (!content && accumulatedFiles.length === 0) {
+                event.preventDefault();
+                return;
             }
+            const dataTransfer = new DataTransfer();
+            accumulatedFiles.forEach(file => dataTransfer.items.add(file));
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.name = 'files';
+            fileInput.multiple = true;
+            fileInput.files = dataTransfer.files;
+            fileInput.style.display = 'none';
+            form.appendChild(fileInput);
         });
     });
+
+    function addFiles(input) {
+        const newFiles = Array.from(input.files);
+        accumulatedFiles = accumulatedFiles.concat(newFiles);
+        updateFilePreview();
+        input.value = '';
+        input.parentElement.querySelector('.attach-icon').style.opacity = '1';
+    }
+
+    function updateFilePreview() {
+        const filePreview = document.getElementById('filePreview');
+        filePreview.innerHTML = '';
+        accumulatedFiles.forEach(file => {
+            const fileName = file.name;
+            const fileDiv = document.createElement('div');
+            fileDiv.className = 'file-preview-item';
+            fileDiv.innerHTML = `
+                <span class="file-name">${fileName}</span>
+                <span class="file-remove" onclick="removeFile('${fileName}')">✕</span>
+            `;
+            filePreview.appendChild(fileDiv);
+        });
+        const attachIcon = document.querySelector('.attach-icon');
+        attachIcon.style.opacity = accumulatedFiles.length > 0 ? '1' : '0.5';
+    }
+
+    function removeFile(fileName) {
+        accumulatedFiles = accumulatedFiles.filter(file => file.name !== fileName);
+        updateFilePreview();
+    }
 </script>
 </body>
 </html>

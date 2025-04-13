@@ -79,6 +79,11 @@ public class UserService implements UserServiceInterface {
                 .orElseThrow(() -> new UsernameNotFoundException("Пользователь с email " + email + " не найден"));
     }
 
+    public User findById(Long id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new UsernameNotFoundException("Пользователь с id " + id + " не найден"));
+    }
+
     public Long getUserIdByEmail(String email) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("Пользователь с email " + email + " не найден"));
@@ -96,6 +101,7 @@ public class UserService implements UserServiceInterface {
 
         existingUser.setUsername(user.getUsername());
         existingUser.setEmailVisible(user.isEmailVisible());
+        existingUser.setAvatarPath(user.getAvatarPath());
         existingUser.setLastActive(LocalDateTime.now());
         userRepository.save(existingUser);
     }

@@ -84,7 +84,7 @@ public class ChatSettingsController {
 
 
     @GetMapping("/group/{id}/edit")
-    public String editGroup(@PathVariable("id") Long id, Model model, Authentication auth) {
+    public String changeGroup(@PathVariable("id") Long id, Model model, Authentication auth) {
         Chat chat = chatService.getChat(id, auth.getName());
         model.addAttribute("chat", chat);
         model.addAttribute("chats", chatService.getGroupChats(auth.getName()));
@@ -94,10 +94,8 @@ public class ChatSettingsController {
 
     @PostMapping("/group/{id}/edit")
     public String saveGroup(@PathVariable("id") Long id, @RequestParam("name") String name, Authentication auth) {
-        Chat chat = chatService.getChat(id, auth.getName());
-        chat.setName(name);
-        chatService.createGroupChat(name, chat.getCreatedBy().getId(), chat.getMembers().stream()
-                .map(m -> m.getUser().getId()).collect(Collectors.toList()));
+        chatService.getChat(id, auth.getName());
+        chatService.updateChatName(id, name);
         return "redirect:/group-set?id=" + id;
     }
 

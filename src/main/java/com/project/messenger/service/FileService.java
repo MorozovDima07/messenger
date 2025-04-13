@@ -47,7 +47,6 @@ public class FileService {
         fileEntity.setUploadedAt(LocalDateTime.now());
         fileEntity = fileRepository.save(fileEntity);
 
-        // Добавляем файл в список files сообщения
         message.getFiles().add(fileEntity);
 
         return fileEntity;

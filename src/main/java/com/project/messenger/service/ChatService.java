@@ -64,6 +64,14 @@ public class ChatService {
         return mapToChatDTOs(chats, user.getId());
     }
 
+    @Transactional
+    public void updateChatName(Long chatId, String newName) {
+        Chat chat = chatRepository.findById(chatId)
+                .orElseThrow(() -> new IllegalArgumentException("Чат не найден"));
+        chat.setName(newName);
+        chatRepository.save(chat);
+    }
+
     @Transactional(readOnly = true)
     public Chat getChat(Long chatId, String email) {
         User user = userService.findByEmail(email);
@@ -211,7 +219,8 @@ public class ChatService {
                         message.getTimestamp().toString(),
                         message.isRead(),
                         message.getSender().getId().equals(currentUser.getId()),
-                        message.getFiles()
+                        message.getFiles(),
+                        message.getSender().getAvatarPath()
                 ))
                 .collect(Collectors.toList());
     }
@@ -277,6 +286,15 @@ public class ChatService {
                 dto.setLastMessageDate(last.getTimestamp().format(DateTimeFormatter.ofPattern("dd.MM.yy HH:mm")));
                 dto.setUnreadCount(messageRepository.findUnreadByChatIdAndUser(chat.getId(), userRepository.findById(userId).get()).size());
             }
+            if (chat.getType() == ChatType.PERSONAL) {
+                ChatMember companion = chat.getMembers().stream()
+                        .filter(member -> !member.getUser().getId().equals(userId))
+                        .findFirst()
+                        .orElse(null);
+                dto.setAvatar(companion != null ? companion.getUser().getAvatarPath() : null);
+            } else {
+                dto.setAvatar(null);
+            }  //доделать для группового чата
             return dto;
         }).collect(Collectors.toList());
     }
@@ -298,6 +316,7 @@ public class ChatService {
         dto.setUserSend(message.getSender().getId().equals(currentUserId));
         dto.setRead(message.isRead());
         dto.setFiles(message.getFiles());
+        dto.setUserAvatar(message.getSender().getAvatarPath());
         return dto;
     }
 

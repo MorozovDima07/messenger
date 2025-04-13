@@ -45,7 +45,8 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        registry.addResourceHandler("/static/**").addResourceLocations("/static/").setCachePeriod(0);;
+        registry.addResourceHandler("/static/**").addResourceLocations("/static/").setCachePeriod(0);
+        registry.addResourceHandler("/uploads/**").addResourceLocations("file:uploads/").setCachePeriod(0);
     }
 
     @Bean(name = "multipartResolver")

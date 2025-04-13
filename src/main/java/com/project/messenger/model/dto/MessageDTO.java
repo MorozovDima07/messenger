@@ -13,11 +13,12 @@ public class MessageDTO {
     private String date;
     private boolean read;
     private boolean userSend;
+    private String userAvatar;
     private List<File> files;
 
     public MessageDTO(){}
 
-    public MessageDTO(Long id, String content, String senderUsername, String date, boolean read, boolean userSend, List<File> files) {
+    public MessageDTO(Long id, String content, String senderUsername, String date, boolean read, boolean userSend, List<File> files, String userAvatar) {
         this.id = id;
         this.content = content;
         this.senderUsername = senderUsername;
@@ -25,5 +26,6 @@ public class MessageDTO {
         this.read = read;
         this.userSend = userSend;
         this.files = files;
+        this.userAvatar = userAvatar;
     }
 }

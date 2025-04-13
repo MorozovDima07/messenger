@@ -5,11 +5,10 @@
     <div class="chat-list">
         <div class="chat-list-search">
             <a th:href="@{/chats/new}" class="chat-list-item chat-list-item-plus">
-                <div class="circle2"><img th:src="@{/static/icons/plus.svg}" alt="New Chat"/></div>
+                <div class="circleAddChat"><img th:src="@{/static/icons/plus.svg}" alt="New Chat"/></div>
             </a>
             <form th:action="@{/chats/search}" method="get" class="search-form">
                 <input type="text" class="input-chat" id="chatName" name="chatName" th:value="${chatName}" placeholder="Поиск чата..." required/>
-                <!-- Крестик для очистки -->
                 <a th:if="${chatName != null and !#strings.isEmpty(chatName)}" th:href="@{/chats}" class="chat-list-item">
                     <img th:src="@{/static/icons/trash.svg}" alt="X"/>
                 </a>
@@ -24,7 +23,8 @@
                             <img th:src="@{/static/icons/group.svg}" alt="Group Chat"/>
                         </th:block>
                         <th:block th:if="${chat.type == T(com.project.messenger.model.ChatType).PERSONAL}">
-                            <img th:src="@{/static/icons/user.svg}" alt="Personal Chat"/>
+                            <img th:if="${chat.avatar != null}" th:src="@{${chat.avatar}}" alt="Avatar"/>
+                            <img th:unless="${chat.avatar != null}" th:src="@{/static/icons/user.svg}" alt="Default Avatar"/>
                         </th:block>
                     </div>
                     <ul class="mess-info">
@@ -32,7 +32,7 @@
                         <li class="last-mess" th:text="${chat.lastMessage}"></li>
                     </ul>
                     <div class="date-last-mess">
-                        <div class="circle1" th:if="${chat.unreadCount > 0}" th:text="${chat.unreadCount}"></div>
+                        <div class="circleUnreadCount" th:if="${chat.unreadCount > 0}" th:text="${chat.unreadCount}"></div>
                         <p th:text="${chat.lastMessageDate}"></p>
                     </div>
                 </a>

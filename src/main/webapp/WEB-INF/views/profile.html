@@ -13,15 +13,30 @@
 </header>
 <div class="container container-reg">
     <p class="h1-reg">Профиль</p>
-    <form th:action="@{/profile}" method="post" class="ul-reg">
-        <ul>
-            <li class="list-group-item item-reg">Email<input type="email" name="email" th:value="${user.email}" class="input-reg" readonly/></li>
-            <li class="list-group-item item-reg">Имя<input type="text" name="username" th:value="${user.username}" class="input-reg"/></li>
-        </ul>
-        <div class="btn-group">
-            <button type="submit" class="btn btn-reg">Сохранить</button>
+    <div class="profile-set">
+        <div class="ava">
+            <div class="circleHugeAvatar">
+                <img th:if="${user.avatarPath != null}" th:src="@{${user.avatarPath}}" alt="Avatar"/>
+                <img th:unless="${user.avatarPath != null}" th:src="@{/static/icons/user.svg}" alt="Default Avatar"/>
+            </div>
         </div>
-    </form>
+        <form th:action="@{/profile/upload-avatar}" method="post" enctype="multipart/form-data" class="list-group-item item-reg">
+            <label class="chat-list-item chat-list-item-sendfile">
+                <input type="file" name="avatar" accept="image/*" hidden/>
+                <span>Выбрать аватар</span>
+            </label>
+            <button type="submit" class="btn-reg">Загрузить</button>
+        </form>
+        <form th:action="@{/profile}" method="post" class="ul-reg">
+            <ul>
+                <li class="list-group-item item-reg">Email<input type="email" name="email" th:value="${user.email}" class="input-reg" readonly/></li>
+                <li class="list-group-item item-reg">Имя<input type="text" name="username" th:value="${user.username}" class="input-reg"/></li>
+            </ul>
+            <div class="btn-group">
+                <button type="submit" class="btn btn-reg">Сохранить</button>
+            </div>
+        </form>
+    </div>
 </div>
 </body>
 </html>

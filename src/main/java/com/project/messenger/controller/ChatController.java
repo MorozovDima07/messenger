@@ -162,9 +162,10 @@ public class ChatController {
 
     @GetMapping("/chats/{id}")
     public String viewChat(@PathVariable("id") Long id, Model model, Authentication auth) {
+        User currentUser = userService.findByEmail(auth.getName());
         Chat chat = chatService.getChat(id, auth.getName());
         model.addAttribute("chat", chat);
-        List<MessageDTO> messages = chatService.getMessagesAndIsCurrUserSent(id, auth.getName());
+        List<MessageDTO> messages = chatService.getMessages(id, currentUser.getId());
         model.addAttribute("messages", messages);
 
         // Фильтруем чаты по типу текущего чата
@@ -174,7 +175,6 @@ public class ChatController {
                 .collect(Collectors.toList());
         model.addAttribute("chats", filteredChats);
 
-        User currentUser = userService.findByEmail(auth.getName());
         messageService.markMessagesAsRead(id, currentUser.getId());
 
         if (chat.getType() == ChatType.PERSONAL) {

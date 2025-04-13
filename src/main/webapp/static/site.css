@@ -247,6 +247,13 @@ input:focus {
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
+}
+
+.circle img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .item-li{
@@ -277,7 +284,7 @@ input:focus {
     justify-content: right;
 }
 
-.circle1{
+.circleUnreadCount{
     width: 20px;
     height: 20px;
     background-color:rgb(80, 80, 80);
@@ -318,7 +325,7 @@ a{
     margin-right: 0px;
 }
 
-.circle2{
+.circleAddChat{
     width: 45px;
     height: 45px;
     background-color:rgb(220, 220, 220);
@@ -403,6 +410,11 @@ a{
     font-size: 16px;
     width: 90%;
     background-color: rgb(233, 233, 233);
+    padding: 8px 12px 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 20px;
+    box-sizing: border-box;
+    resize: none;
 }
 
 .chat-list-item-sendmess{
@@ -437,11 +449,11 @@ a{
     border: 2px solid #f8f9fa;
 }
 
-.message{
+.message {
     background-color: rgb(233, 233, 233);
-    padding: 10px 10px;
+    padding: 10px;
     border-radius: 20px;
-    width:fit-content;
+    width: fit-content;
     margin-top: 10px;
     max-width: 50%;
 }
@@ -451,7 +463,20 @@ a{
 }
 
 .mess-date{
-    margin-top: 2px;
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    font-size: 12px;
+    color: #666;
+}
+
+.mess-date img {
+    margin-right: 4px;
+}
+
+.mess-date p {
+    margin: 0;
 }
 
 .main{
@@ -494,7 +519,7 @@ a{
     align-items: center;
 }
 
-.circle3{
+.circleBigAvatar{
     width: 140px;
     min-width: 140px;
     height: 140px;
@@ -503,6 +528,13 @@ a{
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
+}
+
+.circleBigAvatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .ava{
@@ -569,7 +601,7 @@ a{
     margin-bottom: 10px;
 }
 
-.circle4{
+.circleChangeNotificationMode{
     width: 50px;
     min-width: 20px;
     height: 20px;
@@ -588,14 +620,19 @@ a{
 .user-name{
     color: gray;
     margin-bottom: 5px;
+    margin-bottom: 5px;
 }
 
 .message-with-ava{
     display: flex;
-    align-items: center;
+    align-items: flex-start;
 }
 
-.circle5{
+.message-with-ava-files{
+    max-width: calc(100% - 60px);
+}
+
+.circleSmallAvatar{
     width: 50px;
     min-width: 50px;
     height: 50px;
@@ -605,7 +642,31 @@ a{
     align-items: center;
     justify-content:center;
     margin-right: 10px;
-    margin-top: 5px;
+    overflow: hidden;
+}
+
+.circleSmallAvatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.circleHugeAvatar{
+    width: 400px;
+    height: 400px;
+    background-color: rgb(233, 233, 233);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content:center;
+    margin-right: 10px;
+    overflow: hidden;
+}
+
+.circleHugeAvatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .message-without-ava{
@@ -671,3 +732,112 @@ select[multiple] {
 .member-username{
     margin-left: 10px;
 }
+
+.message-input-wrapper {
+    position: relative;
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    margin: 0 10px;
+}
+
+.file-preview {
+    max-height: 60px; /* Ограничиваем высоту области превью */
+    max-width: 50%; /* Ограничиваем ширину */
+    overflow-y: auto; /* Включаем вертикальную прокрутку */
+    overflow-x: hidden; /* Скрываем горизонтальную прокрутку */
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-left: 10px;
+    padding: 2px;
+    background-color: #f9f9f9; /* Легкий фон для выделения области */
+    border-radius: 8px;
+    scrollbar-width: thin; /* Тонкий скроллбар для Firefox */
+    scrollbar-color: #888 #f9f9f9; /* Цвет скроллбара */
+}
+
+.file-preview::-webkit-scrollbar {
+    width: 6px;
+}
+
+.file-preview::-webkit-scrollbar-thumb {
+    background-color: #888;
+    border-radius: 3px;
+}
+
+.file-preview::-webkit-scrollbar-track {
+    background-color: #f9f9f9;
+}
+
+.file-preview-item {
+    display: flex;
+    align-items: center;
+    background-color: #f0f0f0;
+    border-radius: 12px;
+    padding: 4px 8px;
+    font-size: 12px;
+    color: #333;
+    max-width: 100%; /* Ограничиваем ширину элемента */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-name {
+    max-width: 120px; /* Уменьшаем максимальную ширину имени файла */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-remove {
+    cursor: pointer;
+    margin-left: 6px;
+    color: #888;
+    font-weight: bold;
+    font-size: 14px;
+    transition: color 0.2s;
+}
+
+.file-remove:hover {
+    color: #ff4444;
+}
+
+.chat-list-item-sendfile .attach-icon {
+    opacity: 0.5;
+    transition: opacity 0.2s;
+}
+
+.chat-list-item-sendfile .attach-icon:hover {
+    opacity: 1;
+}
+
+/* Список файлов */
+.file-list {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column; /* Файлы в столбик */
+    gap: 4px; /* Расстояние между файлами */
+}
+
+/* Стиль для каждого файла */
+.file-chip {
+    display: block;
+    background-color: #e0e0e0; /* Легкий серый фон */
+    padding: 4px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    color: #007bff; /* Синий цвет текста */
+    text-decoration: none;
+    max-width: 100%; /* Ограничение ширины чипа */
+    overflow: hidden;
+    text-overflow: ellipsis; /* Обрезка длинных имен */
+    white-space: nowrap;
+}
+
+.file-chip:hover {
+    background-color: #d0d0d0; /* Темнее при наведении */
+    color: #0056b3;
+}
+

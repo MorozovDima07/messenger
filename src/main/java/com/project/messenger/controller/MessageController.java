@@ -18,6 +18,7 @@ import java.net.MalformedURLException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 
 @Controller
 public class MessageController {
@@ -35,26 +36,33 @@ public class MessageController {
     private UserServiceInterface userService;
 
     @PostMapping("/chats/{id}/send")
-    public String sendMessage(@PathVariable("id") Long id,
-                              @RequestParam(value = "content", required = false) String content,
-                              @RequestParam(value = "file", required = false) MultipartFile file,
-                              Authentication auth) {
+    public String sendMessage(
+            @PathVariable("id") Long id,
+            @RequestParam(value = "content", required = false) String content,
+            @RequestParam(value = "files", required = false) MultipartFile[] files,
+            Authentication auth) {
         User currentUser = userService.findByEmail(auth.getName());
         Chat chat = chatService.getChat(id, auth.getName());
 
-        if ((content == null || content.trim().isEmpty()) && (file == null || file.isEmpty())) {
+        boolean hasContent = content != null && !content.trim().isEmpty();
+        boolean hasFiles = files != null && files.length > 0 && Arrays.stream(files).anyMatch(file -> !file.isEmpty());
+        if (!hasContent && !hasFiles) {
             return "redirect:/chats/" + id;
         }
 
         Message message = new Message();
         message.setChat(chat);
         message.setSender(currentUser);
-        message.setContent(content != null ? content.trim() : null);
+        message.setContent(hasContent ? content.trim() : null);
         message.setTimestamp(LocalDateTime.now());
         messageService.save(message);
 
-        if (file != null && !file.isEmpty()) {
-            fileService.uploadFile(file, message);
+        if (hasFiles) {
+            for (MultipartFile file : files) {
+                if (file != null && !file.isEmpty()) {
+                    fileService.uploadFile(file, message);
+                }
+            }
             messageService.save(message);
         }
 

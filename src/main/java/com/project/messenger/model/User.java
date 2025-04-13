@@ -32,6 +32,9 @@ public class User {
     @Column(nullable = false)
     private String username;
 
+    @Column
+    private String avatarPath;
+
     private LocalDateTime lastActive;
 
     private boolean emailVisible;

@@ -11,6 +11,7 @@ public class ChatDTO {
     private String lastMessage;
     private String lastMessageDate;
     private String memberCount;
+    private String avatar;
     private int unreadCount;
     private boolean active;
 }

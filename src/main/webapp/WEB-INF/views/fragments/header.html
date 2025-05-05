@@ -10,16 +10,16 @@
     <nav class="navbar">
         <ul class="navbar-nav">
             <li th:class="${activeTab == 'all'} ? 'item-nav curr-item' : 'item-nav'">
-                <a th:href="@{/chats}" class="navbar-item"><img th:src="@{/static/icons/all-messages.svg}"/></a>
+                <a th:href="@{/chats}" class="navbar-item"><img class="nav-img" th:src="@{/static/icons/all-messages.svg}"/></a>
             </li>
             <li th:class="${activeTab == 'direct'} ? 'item-nav curr-item' : 'item-nav'">
-                <a th:href="@{/direct}" class="navbar-item"><img th:src="@{/static/icons/direct-messages.svg}"/></a>
+                <a th:href="@{/direct}" class="navbar-item"><img class="nav-img" th:src="@{/static/icons/direct-messages.svg}"/></a>
             </li>
             <li th:class="${activeTab == 'group'} ? 'item-nav curr-item' : 'item-nav'">
-                <a th:href="@{/group}" class="navbar-item"><img th:src="@{/static/icons/groups.svg}"/></a>
+                <a th:href="@{/group}" class="navbar-item"><img style="width: 8vh;" th:src="@{/static/icons/groups.svg}"/></a>
             </li>
             <li th:class="${activeTab == 'settings'} ? 'item-nav curr-item' : 'item-nav'">
-                <a th:href="@{/settings}" class="navbar-item"><img th:src="@{/static/icons/settings-icon.svg}"/></a>
+                <a th:href="@{/settings}" class="navbar-item"><img class="nav-img"  th:src="@{/static/icons/settings-icon.svg}"/></a>
             </li>
         </ul>
     </nav>

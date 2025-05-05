@@ -12,7 +12,7 @@
     <th:block th:replace="~{fragments/header :: right-nav('Настройки', null)}"></th:block>
 </header>
 <div class="container container-chats">
-    <th:block th:replace="~{fragments/chat-list :: chat-list(${chats})}"></th:block>
+    <th:block th:replace="~{fragments/chat-list :: chat-list(${chats}, 'ALL')}"></th:block>
     <div class="chat profile">
         <div class="add-set profile-set">
             <div class="ava">

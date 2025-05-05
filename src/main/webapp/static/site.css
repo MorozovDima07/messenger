@@ -142,11 +142,9 @@ button.btn-without-style {
 }
 
 .navbar {
-    padding-top: 14px;
-    padding-bottom: 0px;
+    padding-top: 1vh;
     background-color: #eee;
     font-size: 18px;
-    padding-left: 0;
     min-width: 400px;
     width: 30vw;
 }
@@ -167,7 +165,7 @@ button.btn-without-style {
 
 .item-nav{
     display: flex;
-    min-height: 75px;
+    /*min-height: 75px;*/
     height: 8vh;
     align-items: center;
     width: 25%;
@@ -181,21 +179,24 @@ button.btn-without-style {
 
 .container-chats{
     display: flex;
-    min-height: 90vh;
-    max-height: 90vh;
+    height: 91vh;
+    min-height: 50vh;
 }
 
 .navbar-right{
-    padding-top: 7px;
-    padding-bottom: 0px;
     background-color: #eee;
-    padding-left: 0;
     width: 70vw;
     min-width: 400px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
 }
 
 header{
     display: flex;
+    height: 9vh;
+    /*min-height: 78px;*/
 }
 
 .chat-list{
@@ -312,10 +313,14 @@ input:focus {
     object-fit: contain;
 }
 
+.nav-img {
+	width: 6vh;
+}
+
 #defaultAvatar {
     width: 50%;
     height: 50%;
-	object-fit: contain;
+	object-fit: contain
 }
 
 .item-li{
@@ -416,7 +421,7 @@ a{
 
 .item-nav-right{
     display: flex;
-    min-height: 75px;
+    /*min-height: 75px;*/
     height: 8vh;
     align-items: center;
     justify-content: center;
@@ -441,7 +446,7 @@ a{
 .cont-name{
     font-weight: bold;
     font-size: 22px;
-    margin-bottom: 5px;
+    /*margin-bottom: 5px;*/
 }
 
 .cont-time{

@@ -12,7 +12,7 @@
     <th:block th:replace="~{fragments/header :: right-nav('Новый чат', null)}"></th:block>
 </header>
 <div class="container container-chats">
-    <th:block th:replace="~{fragments/chat-list :: chat-list(${chats})}"></th:block>
+    <th:block th:replace="~{fragments/chat-list :: chat-list(${chats}, 'ALL')}"></th:block>
     <div class="chat">
         <div class="new-chat-container">
             <p class="h1-reg">Создать новый чат</p>

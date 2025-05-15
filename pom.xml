@@ -196,5 +196,16 @@
                 </executions>
             </plugin>
         </plugins>
+
+        <!-- Для использования переменных окружения в файле .properties -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
+        <filters>
+            <filter>${basedir}/.env</filter>
+        </filters>
     </build>
 </project>

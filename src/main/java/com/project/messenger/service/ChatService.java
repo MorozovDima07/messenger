@@ -251,22 +251,6 @@ public class ChatService {
         addMemberToGroup(chat.getId(), userId);
     }
 
-//    @Transactional(readOnly = true)
-//    public List<ChatDTO> searchPersonalChatByName(String email, String query) {
-//        String normalizedQuery = query.trim().toLowerCase();
-//        Long userId = userService.getUserIdByEmail(email);
-//        List<Chat> chats = chatRepository.findGroupChatsByName(normalizedQuery, userId);
-//        return mapToChatDTOs(chats, userId);
-//    }
-//
-//    @Transactional(readOnly = true)
-//    public List<ChatDTO> searchGroupChatByName(String email, String query) {
-//        String normalizedQuery = query.trim().toLowerCase();
-//        Long userId = userService.getUserIdByEmail(email);
-//        List<Chat> chats = chatRepository.findPersonalChatsByOtherUsername(normalizedQuery, userId);
-//        return mapToChatDTOs(chats, userId);
-//    }
-
     @Transactional(readOnly = true)
     public List<ChatDTO> searchChatsByType(String email, String query, @Nullable ChatType type) {
         String normalizedQuery = query.trim().toLowerCase();

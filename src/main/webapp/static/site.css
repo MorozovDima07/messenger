@@ -166,7 +166,7 @@ button.btn-without-style {
 .item-nav{
     display: flex;
     /*min-height: 75px;*/
-    height: 8vh;
+    height: 10vh;
     align-items: center;
     width: 25%;
     justify-content: center;
@@ -179,7 +179,7 @@ button.btn-without-style {
 
 .container-chats{
     display: flex;
-    height: 91vh;
+    height: 89vh;
     min-height: 50vh;
 }
 
@@ -195,7 +195,7 @@ button.btn-without-style {
 
 header{
     display: flex;
-    height: 9vh;
+    height: 11vh;
     /*min-height: 78px;*/
 }
 

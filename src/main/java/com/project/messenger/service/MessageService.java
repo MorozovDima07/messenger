@@ -1,7 +1,6 @@
 package com.project.messenger.service;
 
 import com.project.messenger.model.Chat;
-import com.project.messenger.model.ChatMember;
 import com.project.messenger.model.Message;
 import com.project.messenger.model.User;
 import com.project.messenger.repository.MessageRepository;

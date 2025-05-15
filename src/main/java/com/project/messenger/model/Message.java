@@ -32,7 +32,7 @@ public class Message {
     @JoinColumn(name = "sender_id", nullable = false)
     private User sender;
 
-    @NotBlank(message = "Сообщение не может быть пустым")
+//    @NotBlank(message = "Сообщение не может быть пустым") //Если это будет активно, то файл нельзя будет отправить без текста сообщения
     @Column(columnDefinition = "TEXT")
     private String content;
 

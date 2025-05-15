@@ -10,6 +10,7 @@ import org.imgscalr.Scalr;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.*;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -22,6 +23,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 public class ChatService {
@@ -548,5 +550,27 @@ public class ChatService {
             throw new SecurityException("Пользователь " + email + " не является участником чата " + chatId);
         }
         return chat;
+    }
+
+    @Transactional(readOnly = true)
+    public List<ChatDTO> searchChatsByType(String email, String query, @Nullable ChatType type) {
+        String normalizedQuery = query.trim().toLowerCase();
+        Long userId = userService.getUserIdByEmail(email);
+
+        List<Chat> chats;
+
+        if (type == null) {
+            chats = Stream.concat(
+                    chatRepository.findPersonalChatsByOtherUsername(userId, normalizedQuery).stream(),
+                    chatRepository.findGroupChatsByName(userId, normalizedQuery).stream()
+            ).toList();
+        } else {
+            chats = switch (type) {
+                case PERSONAL -> chatRepository.findPersonalChatsByOtherUsername(userId, normalizedQuery);
+                case GROUP -> chatRepository.findGroupChatsByName(userId, normalizedQuery);
+            };
+        }
+
+        return mapToChatDTOs(chats, userId, email);
     }
 }

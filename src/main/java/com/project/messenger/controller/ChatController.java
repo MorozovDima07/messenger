@@ -70,16 +70,6 @@ public class ChatController extends BaseController {
         return null;
     }
 
-
-    @GetMapping("/chats/search")
-    public String searchChats(@RequestParam("chatName") String chatName, Model model, Authentication auth) {
-        List<ChatDTO> chats = chatService.searchChatsByUserAndChatName(auth.getName(), chatName);
-        model.addAttribute("chats", chats);
-        model.addAttribute("chatName", chatName);
-        model.addAttribute("userEmail", auth.getName());
-        return "chats";
-    }
-
     @GetMapping("/chats")
     public String chats(
             @RequestParam(name = "page", defaultValue = "0") int page,
@@ -290,5 +280,23 @@ public class ChatController extends BaseController {
         Page<ChatDTO> chatsPage = chatService.getChatsPage(auth.getName(), chatType, pageable);
         System.out.println("Loaded " + chatsPage.getNumberOfElements() + " chats for page " + page);
         return chatsPage;
+    }
+
+    @GetMapping("/chats/search")
+    public String searchChats(@RequestParam("chatName") String chatName,
+                              @RequestParam("chatType") String chatType,
+                              Model model, Authentication auth,
+                              HttpServletRequest request) {
+        ChatType type = null;
+
+        if (!"ALL".equals(chatType)) {
+            type = ChatType.valueOf(chatType);
+        }
+
+        List<ChatDTO> chats = chatService.searchChatsByType(auth.getName(), chatName, type);
+        model.addAttribute("chats", chats);
+        model.addAttribute("chatName", chatName);
+
+        return "fragments/chat-list :: chat-list-items";
     }
 }

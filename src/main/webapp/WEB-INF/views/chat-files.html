@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Chat Files - Messenger</title>
     <link th:href="@{/static/site.css}" rel="stylesheet"/>
+    <meta name="user-email" th:content="${userEmail}"/>
+    <th:block th:replace="~{fragments/header :: head}"></th:block>
 </head>
 <body>
 <header>
@@ -12,24 +14,195 @@
     <th:block th:replace="~{fragments/header :: right-nav('Файлы чата', null)}"></th:block>
 </header>
 <div class="container container-chats">
-    <th:block th:replace="~{fragments/chat-list :: chat-list(${chats})}"></th:block>
+    <th:block th:replace="~{fragments/chat-list :: chat-list(${chatsPage.content})}"></th:block>
     <div class="chat">
         <div class="files-container">
             <p class="h1-reg">Файлы чата</p>
-            <ul class="chats-ul">
+            <div th:if="${error}" th:text="${error}" class="error"></div>
+            <form id="sort-form" th:action="@{/chat/{id}/files(id=${chat.id})}" method="get">
+                <input type="hidden" name="scrollPosition" id="scrollPosition"/>
+                <div class="sort-container">
+                    <label class="sort-label">Сортировка:</label>
+                    <select name="sort" class="sort-select" onchange="this.form.submit()">
+                        <option value="uploadedAt,desc" th:selected="${currentSort == 'uploadedAt,desc'}">По дате (новые)</option>
+                        <option value="uploadedAt,asc" th:selected="${currentSort == 'uploadedAt,asc'}">По дате (старые)</option>
+                        <option value="fileName,asc" th:selected="${currentSort == 'fileName,asc'}">По имени (А-Я)</option>
+                        <option value="fileName,desc" th:selected="${currentSort == 'fileName,desc'}">По имени (Я-А)</option>
+                    </select>
+                </div>
+            </form>
+            <ul id="files-list" class="files-ul">
                 <li class="item-li" th:each="file : ${files}">
-                    <div class="chats-item">
-                        <div class="circle"><img th:src="@{/static/icons/files.svg}"/></div>
-                        <ul class="mess-info">
-                            <li class="guy-mess" th:text="${file.fileName}"></li>
-                            <li class="last-mess" th:text="${file.uploadedAt}"></li>
-                        </ul>
-                        <a th:href="@{/file/{id}(id=${file.id})}" class="btn btn-reg">Скачать</a>
+                    <div class="file-grid-container">
+                        <div class="file-grid-preview">
+                            <div class="file-preview-container">
+                                <img th:if="${file.isImage()}" th:src="@{/file/{id}(id=${file.id})}" th:alt="${file.fileName}" class="file-preview-img" loading="lazy"/>
+                                <video th:if="${file.isVideo()}" controls class="file-preview-video" loading="lazy">
+                                    <source th:src="@{/file/{id}(id=${file.id})}" th:type="${file.contentType}"/>
+                                    Ваш браузер не поддерживает видео.
+                                </video>
+                                <img th:unless="${file.isImage() or file.isVideo()}" th:src="@{/static/icons/files.svg}" class="file-preview-img" loading="lazy"/>
+                            </div>
+                        </div>
+                        <div class="file-grid-info">
+                            <span class="guy-mess file-name-ellipsis" th:text="${file.fileName}"></span>
+                            <span class="last-mess" th:text="${file.uploadedAt}"></span>
+                            <span class="last-mess" th:text="${file.senderUsername}"></span>
+                            <span class="last-mess" th:text="${#numbers.formatInteger(file.fileSize / 1024, 1, 'COMMA') + ' KB'}"></span>
+                        </div>
+                        <div class="file-grid-download">
+                            <a th:href="@{/file/{id}(id=${file.id})}" class="btn btn-reg" onclick="saveScrollPosition()">Скачать</a>
+                        </div>
                     </div>
                 </li>
+                <li th:if="${page.isEmpty}" class="item-li">
+                    <p>Нет файлов</p>
+                </li>
             </ul>
+            <div id="loading" style="display: none; text-align: center; padding: 20px;">
+                <span class="spinner"></span> Загрузка...
+            </div>
+            <div id="sentinel" style="height: 1px;"></div>
         </div>
     </div>
 </div>
+<script th:inline="javascript">
+    let page = /*[[${page.number}]]*/ 0;
+    const size = /*[[${page.size}]]*/ 10;
+    const chatId = /*[[${chat.id}]]*/ 0;
+    let sort = /*[[${currentSort}]]*/ 'uploadedAt,desc';
+    let isLoading = false;
+    const filesList = document.getElementById('files-list');
+    const loading = document.getElementById('loading');
+    const sentinel = document.getElementById('sentinel');
+    const csrfToken = /*[[${_csrf.token}]]*/ '';
+    const cache = new Map();
+
+    window.scrollTo(0, /*[[${scrollPosition}]]*/ 0);
+
+    function saveScrollPosition() {
+        document.getElementById('scrollPosition').value = window.scrollY;
+    }
+
+    document.querySelector('#sort-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        saveScrollPosition();
+        cache.clear();
+        filesList.innerHTML = '';
+        page = 0;
+        const formData = new FormData(e.target);
+        sort = formData.get('sort');
+        await loadMoreFiles();
+    });
+
+    const observer = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && !isLoading) {
+            loadMoreFiles();
+        }
+    }, { threshold: 0.1, rootMargin: '50px' });
+
+    observer.observe(sentinel);
+
+    async function loadMoreFiles() {
+        const cacheKey = `${page + 1}-${size}-${sort}`;
+        if (cache.has(cacheKey)) {
+            appendFiles(cache.get(cacheKey));
+            page++;
+            if (!hasMorePages(cache.get(cacheKey))) {
+                observer.unobserve(sentinel);
+            }
+            return;
+        }
+
+        isLoading = true;
+        loading.style.display = 'block';
+        try {
+            const response = await fetch(`/chat/${chatId}/files/list?page=${page + 1}&size=${size}&sort=${sort}`, {
+                headers: { 'X-CSRF-TOKEN': csrfToken }
+            });
+            if (!response.ok) {
+                throw new Error();
+            }
+            const data = await response.json();
+            cache.set(cacheKey, data);
+            if (data.content.length > 0) {
+                page++;
+                appendFiles(data);
+                if (!hasMorePages(data)) {
+                    observer.unobserve(sentinel);
+                }
+            } else {
+                observer.unobserve(sentinel);
+            }
+        } catch (error) {
+            loading.innerHTML = '<p class="error">Ошибка загрузки. Попробуйте снова.</p>';
+            setTimeout(() => {
+                loading.innerHTML = '<span class="spinner"></span> Загрузка...';
+                loading.style.display = 'none';
+                observer.observe(sentinel);
+            }, 3000);
+        } finally {
+            isLoading = false;
+            loading.style.display = 'none';
+            if (document.body.scrollHeight <= window.innerHeight + window.scrollY + 100 && hasMorePages(cache.get(cacheKey) || {})) {
+                setTimeout(() => loadMoreFiles(), 100);
+            }
+        }
+    }
+
+    function hasMorePages(data) {
+        if (data.last !== undefined) {
+            return !data.last;
+        }
+        if (data.totalPages !== undefined && data.number !== undefined) {
+            return data.number + 1 < data.totalPages;
+        }
+        if (data.totalElements !== undefined && data.size !== undefined && data.number !== undefined) {
+            return (data.number + 1) * data.size < data.totalElements;
+        }
+        return false;
+    }
+
+    function appendFiles(data) {
+        data.content.forEach(file => {
+            const li = document.createElement('li');
+            li.className = 'item-li';
+            const isImage = file.contentType && file.contentType.startsWith('image/');
+            const isVideo = file.contentType && file.contentType.startsWith('video/');
+            li.innerHTML = `
+                <div class="file-grid-container">
+                    <div class="file-grid-preview">
+                        <div class="file-preview-container">
+                            ${isImage ? `<img src="/file/${file.id}" alt="${file.fileName}" class="file-preview-img" loading="lazy"/>` : ''}
+                            ${isVideo ? `
+                                <video controls class="file-preview-video" loading="lazy">
+                                    <source src="/file/${file.id}" type="${file.contentType}"/>
+                                    Ваш браузер не поддерживает видео.
+                                </video>
+                            ` : ''}
+                            ${!isImage && !isVideo ? `<img src="/static/icons/files.svg" class="file-preview-img" loading="lazy"/>` : ''}
+                        </div>
+                    </div>
+                    <div class="file-grid-info">
+                        <span class="guy-mess file-name-ellipsis">${file.fileName}</span>
+                        <span class="last-mess">${file.uploadedAt}</span>
+                        <span class="last-mess">${file.senderUsername}</span>
+                        <span class="last-mess">${Math.round(file.fileSize / 1024)} KB</span>
+                    </div>
+                    <div class="file-grid-download">
+                        <a href="/file/${file.id}" class="btn btn-reg" onclick="saveScrollPosition()">Скачать</a>
+                    </div>
+                </div>
+            `;
+            filesList.appendChild(li);
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        if (document.body.scrollHeight <= window.innerHeight + window.scrollY + 100) {
+            loadMoreFiles();
+        }
+    });
+</script>
 </body>
 </html>

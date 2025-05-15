@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Settings - Messenger</title>
     <link th:href="@{/static/site.css}" rel="stylesheet"/>
+    <meta name="user-email" th:content="${userEmail}"/>
+    <th:block th:replace="~{fragments/header :: head}"></th:block>
 </head>
 <body>
 <header>
@@ -12,30 +14,33 @@
     <th:block th:replace="~{fragments/header :: right-nav('Настройки', null)}"></th:block>
 </header>
 <div class="container container-chats">
-    <th:block th:replace="~{fragments/chat-list :: chat-list(${chats}, 'ALL')}"></th:block>
+    <th:block th:replace="~{fragments/chat-list :: chat-list(${chatsPage.content})}"></th:block>
     <div class="chat profile">
         <div class="add-set profile-set">
-            <div class="ava">
-                <div class="circleBigAvatar">
-                    <img th:if="${user.avatarPath != null}" th:src="@{${user.avatarPath}}" alt="Avatar"/>
-                    <img th:unless="${user.avatarPath != null}" th:src="@{/static/icons/user.svg}" alt="Default Avatar"/>
+            <div class="settings-container">
+                <div class="settings-content">
+                    <div class="ava">
+                        <div class="circleBigAvatarSet">
+                            <img th:if="${user.avatarPath != null}" th:src="@{${user.avatarPath}}" alt="Avatar"/>
+                            <img th:unless="${user.avatarPath != null}" th:src="@{/static/icons/user.svg}" alt="Default Avatar"/>
+                        </div>
+                    </div>
+                    <div class="cont-info cont-info-set">
+                        <li class="cont-name" sec:authentication="name"></li>
+                    </div>
+                    <ul class="settings-list">
+                        <li class="settings-item"><a th:href="@{/profile}" class="settings-link"><img th:src="@{/static/icons/user.svg}" class="settings-icon"/><div class="settings-text">Профиль</div></a></li>
+                        <li class="settings-item"><a th:href="@{/blocked-users}" class="settings-link"><img th:src="@{/static/icons/block.svg}" class="settings-icon"/><div class="settings-text">Заблокированные</div></a></li>
+                        <li class="settings-item"><a th:href="@{/notification-settings}" class="settings-link"><img th:src="@{/static/icons/notifications.svg}" class="settings-icon"/><div class="settings-text">Уведомления</div></a></li>
+                        <li class="settings-item"><a th:href="@{/settings/change-password}" class="settings-link"><div class="settings-text">Изменить пароль</div></a></li>
+                        <li class="logout-container">
+                            <form th:action="@{/logout}" method="post" class="navbar-item">
+                                <button type="submit" class="logout-button">Выйти</button>
+                            </form>
+                        </li>
+                    </ul>
                 </div>
             </div>
-            <div class="cont-info cont-info-set">
-                <li class="cont-name" sec:authentication="name"></li>
-                <li class="cont-time" th:text="${user.lastActive}"></li>
-            </div>
-            <ul class="settings">
-                <li class="setting"><a th:href="@{/profile}" class="a-setting"><img th:src="@{/static/icons/user.svg}"/><div class="setting-text">Профиль</div></a></li>
-                <li class="setting"><a th:href="@{/blocked-users}" class="a-setting"><img th:src="@{/static/icons/block.svg}" style="width: 40px;"/><div class="setting-text">Заблокированные</div></a></li>
-                <li class="setting"><a href="#" class="a-setting"><img th:src="@{/static/icons/notifications.svg}"/><div class="setting-text">Уведомления</div></a></li>
-                <li class="setting"><a th:href="@{/change-password}" class="a-setting"><div class="setting-text">Изменить пароль</div></a></li>
-                <li class="logout-settings">
-                    <form th:action="@{/logout}" method="post" class="navbar-item">
-                        <button type="submit" class="logout-btn">Выйти</button>
-                    </form>
-                </li>
-            </ul>
         </div>
     </div>
 </div>

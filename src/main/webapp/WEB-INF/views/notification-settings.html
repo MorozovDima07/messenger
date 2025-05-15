@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Notification Settings - Messenger</title>
+    <link th:href="@{/static/site.css}" rel="stylesheet"/>
+    <meta name="user-email" th:content="${userEmail}"/>
+    <th:block th:replace="~{fragments/header :: head}"></th:block>
+</head>
+<body>
+<header>
+    <th:block th:replace="~{fragments/header :: left-nav('settings')}"></th:block>
+    <th:block th:replace="~{fragments/header :: right-nav('Настройки уведомлений', null)}"></th:block>
+</header>
+<div class="container container-chats">
+    <th:block th:replace="~{fragments/chat-list :: chat-list(${chatsPage.content})}"></th:block>
+    <div class="chat">
+        <div class="settings-container">
+            <p class="h1-reg">Настройки уведомлений</p>
+            <div th:if="${success}" th:text="${success}" class="success"></div>
+            <div th:if="${error}" th:text="${error}" class="error"></div>
+            <form id="notification-form" th:action="@{/notification-settings/update}" method="post">
+                <input type="hidden" name="_csrf" th:value="${_csrf.token}"/>
+                <div class="toggle-container">
+                    <label class="toggle-label" for="personalChatNotifications">Уведомления из личных чатов</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="personalChatNotifications" id="personalChatNotifications" th:checked="${settings.personalChatNotifications.name() == 'ALL'}"/>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="toggle-container">
+                    <label class="toggle-label" for="groupChatNotifications">Уведомления из групповых чатов</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" name="groupChatNotifications" id="groupChatNotifications" th:checked="${settings.groupChatNotifications.name() == 'ALL'}"/>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <button type="submit" class="btn btn-reg">Сохранить</button>
+            </form>
+            <form th:action="@{/notification-settings/reset}" method="post">
+                <input type="hidden" name="_csrf" th:value="${_csrf.token}"/>
+                <button type="submit" class="btn btn-reg btn-res">Сбросить настройки</button>
+            </form>
+        </div>
+    </div>
+</div>
+</body>
+</html>

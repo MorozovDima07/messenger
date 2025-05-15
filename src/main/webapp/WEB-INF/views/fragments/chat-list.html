@@ -4,10 +4,10 @@
 <th:block th:fragment="chat-list(chats, chatType)">
     <div class="chat-list">
         <div class="chat-list-search">
-            <a th:href="@{/chats/new}">
+            <a th:href="@{/chats/new(page=${chatsPage.number}, size=${chatsPage.size})}">
                 <div class="circleAddChat"><img th:src="@{/static/icons/plus.svg}" alt="New Chat"/></div>
             </a>
-            <form th:action="@{/chats/search}" method="get" class="search-form">
+            <form th:action="@{/chats/search(page=${chatsPage.number}, size=${chatsPage.size})}" method="get" class="search-form">
                 <input type="hidden" id="chatType" name="chatType" th:value="${chatType}"/>
                 <input type="text" class="input-chat" id="chatName" name="chatName" th:value="${chatName}" placeholder="Поиск чата..."/>
                 <a class="clean-search" id="cleanSearch">
@@ -18,24 +18,33 @@
         </div>
 
         <div class="scroll-wrapper">
-            <ul id="chatListItems" class="chats-ul">
+            <ul id="chatListItems" class="chats-ul"
+                th:attr="data-page=${chatsPage.number},
+                    data-size=${chatsPage.size},
+                    data-total-pages=${chatsPage.totalPages},
+                    data-chat-type=${chatType != null} ? ${chatType} : ''">
                 <th:block th:fragment="chat-list-items">
                     <th:block th:if="${#lists.isEmpty(chats)}">
                         <li style="text-align: center; font-size: large;">Чаты не найдены</li>
                     </th:block>
-                    <li class="item-li" th:each="chat : ${chats}">
-                        <a th:href="@{/chats/{id}(id=${chat.id})}" th:classappend="${chat.active} ? 'chats-item active-item' : 'chats-item'">
+                    <li class="item-li" th:each="chat : ${chats}" th:attr="data-chat-id=${chat.id}, data-user-email=${chat.isPersonal} ? ${chat.recipientEmail} : '', data-chat-type=${chat.type}">
+                        <a th:href="@{${chat.isPersonal} ? '/direct' : '/group'(id=${chat.id}, page=${chatsPage.number}, size=${chatsPage.size})}"
+                           th:classappend="${chat.active} ? 'chats-item active-item' : 'chats-item'">
                             <div class="circle">
                                 <th:block th:if="${chat.type == T(com.project.messenger.model.ChatType).GROUP}">
-                                    <img th:src="@{/static/icons/group.svg}" alt="Group Chat"/>
+                                    <img th:if="${chat.avatar != null}" th:src="@{${chat.avatar}}" alt="Avatar"/>
+                                    <img th:unless="${chat.avatar != null}" th:src="@{/static/icons/group.svg}" alt="Default Avatar"/>
                                 </th:block>
                                 <th:block th:if="${chat.type == T(com.project.messenger.model.ChatType).PERSONAL}">
                                     <img th:if="${chat.avatar != null}" th:src="@{${chat.avatar}}" alt="Avatar"/>
-                                    <img id="defaultAvatar" th:unless="${chat.avatar != null}" th:src="@{/static/icons/user.svg}" alt="Default Avatar"/>
+                                    <img th:unless="${chat.avatar != null}" th:src="@{/static/icons/user.svg}" alt="Default Avatar"/>
                                 </th:block>
                             </div>
                             <ul class="mess-info">
-                                <li class="guy-mess" th:text="${chat.name}"></li>
+                                <li class="guy-mess">
+                                    <span th:text="${chat.name}"></span>
+                                    <span th:if="${chat.isPersonal and chat.recipientEmail != null}" class="online-indicator-name" th:attr="data-user-email=${chat.recipientEmail}"></span>
+                                </li>
                                 <li class="last-mess" th:text="${chat.lastMessage}"></li>
                             </ul>
                             <div class="date-last-mess">
@@ -44,8 +53,12 @@
                             </div>
                         </a>
                     </li>
+                    <li id="sentinel" style="height: 1px; list-style: none;"></li>
                 </th:block>
             </ul>
+            <div id="loading" style="display: none; text-align: center; padding: 10px;">
+                <span class="spinner"></span> Загрузка...
+            </div>
         </div>
     </div>
 </th:block>

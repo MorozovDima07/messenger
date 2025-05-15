@@ -14,7 +14,8 @@ import java.util.Set;
 @Entity
 @Table(name = "messages", indexes = {
         @Index(name = "messages_chat_id_idx", columnList = "chat_id"),
-        @Index(name = "idx_sender_id", columnList = "sender_id")
+        @Index(name = "idx_sender_id", columnList = "sender_id"),
+        @Index(name = "idx_timestamp", columnList = "timestamp"),
 })
 @Data
 public class Message {
@@ -49,6 +50,6 @@ public class Message {
     @Column(name = "is_read")
     private boolean isRead;
 
-    @OneToMany(mappedBy = "message", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "message", cascade = {CascadeType.MERGE, CascadeType.REFRESH, CascadeType.REMOVE})
     private List<File> files = new ArrayList<>();
 }

@@ -3,19 +3,23 @@ package com.project.messenger.controller;
 import com.project.messenger.model.NotificationLevel;
 import com.project.messenger.model.User;
 import com.project.messenger.model.UserSettings;
+import com.project.messenger.model.dto.BlockedUserDTO;
 import com.project.messenger.model.dto.ChangePasswordDTO;
 import com.project.messenger.service.ChatService;
-import com.project.messenger.service.UserService;
 import com.project.messenger.service.UserServiceInterface;
-import jakarta.validation.Valid;
+import com.project.messenger.service.UserSettingsService;
 import org.imgscalr.Scalr;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -25,8 +29,7 @@ import java.io.File;
 import java.io.IOException;
 
 @Controller
-@Validated
-public class UserController {
+public class UserController extends BaseController{
 
     @Autowired
     private UserServiceInterface userService;
@@ -35,25 +38,40 @@ public class UserController {
     private ChatService chatService;
 
     @Autowired
+    private UserSettingsService userSettingsService;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @GetMapping("/profile")
-    public String profile(Model model, Authentication auth) {
+    public String profile(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            Model model,
+            Authentication auth) {
         User user = userService.findByEmail(auth.getName());
         model.addAttribute("user", user);
+        model.addAttribute("userEmail", auth.getName());
         return "profile";
     }
 
     @PostMapping("/profile")
-    public String updateProfile(@RequestParam("username") String username, Authentication auth) {
+    public String updateProfile(@RequestParam(name = "username") String username,
+                                @RequestParam(name = "page", defaultValue = "0") int page,
+                                @RequestParam(name = "size", defaultValue = "10") int size,
+                                Authentication auth,
+                                Model model) {
         User user = userService.findByEmail(auth.getName());
         user.setUsername(username);
         userService.updateUser(user);
-        return "redirect:/profile";
+        UserSettings settings = userService.getUserSettings(user.getId());
+        model.addAttribute("user", user);
+        model.addAttribute("settings", settings);
+        return "redirect:/settings?page=" + page + "&size=" + size;
     }
 
     @PostMapping("/profile/upload-avatar")
-    public String uploadAvatar(@RequestParam("avatar") MultipartFile file, Authentication auth, Model model) throws IOException {
+    public String uploadAvatar(@RequestParam(name = "avatar") MultipartFile file, Authentication auth, Model model) throws IOException {
         if (!file.isEmpty()) {
             String contentType = file.getContentType();
             if (contentType != null && contentType.startsWith("image/")) {
@@ -63,10 +81,12 @@ public class UserController {
                     user.setAvatarPath(avatarPath);
                     userService.updateUser(user);
                 } else {
+                    model.addAttribute("userEmail", auth.getName());
                     model.addAttribute("error", "Файл слишком большой (максимум 5 МБ)");
                     return "profile";
                 }
             } else {
+                model.addAttribute("userEmail", auth.getName());
                 model.addAttribute("error", "Допустимы только изображения");
                 return "profile";
             }
@@ -120,38 +140,146 @@ public class UserController {
     }
 
     @GetMapping("/settings")
-    public String settings(Model model, Authentication auth) {
+    public String settings(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            Model model,
+            Authentication auth) {
         User user = userService.findByEmail(auth.getName());
         UserSettings settings = userService.getUserSettings(user.getId());
         model.addAttribute("user", user);
         model.addAttribute("settings", settings);
-        model.addAttribute("chats", chatService.getUserChats(auth.getName()));
+        model.addAttribute("userEmail", auth.getName());
         return "settings";
     }
 
     @PostMapping("/settings")
-    public String updateSettings(@RequestParam("personalChatNotifications") NotificationLevel personalChatNotifications,
-                                 @RequestParam("groupChatNotifications") NotificationLevel groupChatNotifications,
-                                 @RequestParam("theme") String theme,
+    public String updateSettings(@RequestParam(name = "personalChatNotifications") NotificationLevel personalChatNotifications,
+                                 @RequestParam(name = "groupChatNotifications") NotificationLevel groupChatNotifications,
+                                 @RequestParam(name = "theme") String theme,
+                                 @RequestParam(name = "page", defaultValue = "0") int page,
+                                 @RequestParam(name = "size", defaultValue = "10") int size,
                                  Authentication auth) {
         User user = userService.findByEmail(auth.getName());
         userService.updateUserSettings(user.getId(), personalChatNotifications, groupChatNotifications, theme);
-        return "redirect:/settings";
+        return "redirect:/settings?page=" + page + "&size=" + size;
     }
 
     @GetMapping("/blocked-users")
-    public String blockedUsers(Model model, Authentication auth) {
-        User user = userService.findByEmail(auth.getName());
-        model.addAttribute("blockedUsers", userService.getBlockedUsers(user.getId()));
-        model.addAttribute("chats", chatService.getUserChats(auth.getName()));
+    public String blockedUsers(@RequestParam(name = "page", value = "page", defaultValue = "0") int page,
+                               @RequestParam(name = "size", value = "size", defaultValue = "10") int size,
+                               @RequestParam(name = "scrollPosition", value = "scrollPosition", defaultValue = "0") int scrollPosition,
+                               Model model,
+                               Authentication auth) {
+        String email = auth.getName();
+        User user = userService.findByEmail(email);
+        Pageable pageable = PageRequest.of(page, size);
+        model.addAttribute("blockedUsersPage", userService.getBlockedUsers(user.getId(), pageable));
+        model.addAttribute("chatType", null); // Покажем все чаты
+        model.addAttribute("scrollPosition", scrollPosition);
+        model.addAttribute("userEmail", auth.getName());
         return "blocked-users";
     }
 
     @PostMapping("/blocked-users/unblock")
-    public String unblockUser(@RequestParam("id") Long id, Authentication auth) {
-        User user = userService.findByEmail(auth.getName());
-        userService.unblockUser(user.getId(), id);
-        return "redirect:/blocked-users";
+    public String unblockUser(@RequestParam(name = "id") Long id,
+                              @RequestParam(name = "page", value = "page", defaultValue = "0") int page,
+                              @RequestParam(name = "size", value = "size", defaultValue = "10") int size,
+                              @RequestParam(name = "scrollPosition", value = "scrollPosition", defaultValue = "0") int scrollPosition,
+                              Authentication auth,
+                              Model model) {
+        try {
+            User user = userService.findByEmail(auth.getName());
+            userService.unblockUser(user.getId(), id);
+            model.addAttribute("success", "Пользователь разблокирован");
+            return "redirect:/blocked-users?page=" + page + "&size=" + size + "&scrollPosition=" + scrollPosition;
+        } catch (IllegalStateException e) {
+            model.addAttribute("error", e.getMessage());
+            model.addAttribute("chatType", null);
+            return "blocked-users";
+        }
+    }
+
+    @GetMapping("/blocked-users/list")
+    @ResponseBody
+    public ResponseEntity<Page<BlockedUserDTO>> getBlockedUsersAjax(@RequestParam(name = "page") int page,
+                                                                    @RequestParam(name = "size") int size,
+                                                                    Authentication auth) {
+        try {
+            String email = auth.getName();
+            User user = userService.findByEmail(email);
+            Pageable pageable = PageRequest.of(page, size);
+            Page<BlockedUserDTO> blockedUsersPage = userService.getBlockedUsers(user.getId(), pageable);
+            return ResponseEntity.ok(blockedUsersPage);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @GetMapping("/notification-settings")
+    public String notificationSettings(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            Model model,
+            Authentication auth) {
+        try {
+            String email = auth.getName();
+            User user = userService.findByEmail(email);
+            UserSettings settings = userSettingsService.getUserSettings(user);
+            model.addAttribute("settings", settings);
+            model.addAttribute("userEmail", auth.getName());
+            return "notification-settings";
+        } catch (IllegalArgumentException e) {
+            model.addAttribute("error", e.getMessage());
+            model.addAttribute("chatType", null);
+            model.addAttribute("userEmail", auth.getName());
+            return "error";
+        }
+    }
+
+    @PostMapping("/notification-settings/update")
+    public String updateNotificationSettings(
+            @RequestParam(name = "personalChatNotifications", value = "personalChatNotifications", defaultValue = "false") boolean personalChatNotifications,
+            @RequestParam(name = "groupChatNotifications", value = "groupChatNotifications", defaultValue = "false") boolean groupChatNotifications,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            Model model,
+            Authentication auth) {
+        try {
+            User user = userService.findByEmail(auth.getName());
+            NotificationLevel personalLevel = personalChatNotifications ? NotificationLevel.ALL : NotificationLevel.NONE;
+            NotificationLevel groupLevel = groupChatNotifications ? NotificationLevel.ALL : NotificationLevel.NONE;
+            userSettingsService.updateNotificationSettings(user, personalLevel, groupLevel);
+            model.addAttribute("success", "Настройки уведомлений обновлены");
+            model.addAttribute("settings", userSettingsService.getUserSettings(user));
+            return "redirect:/notification-settings?page=" + page + "&size=" + size;
+        } catch (IllegalArgumentException e) {
+            model.addAttribute("error", e.getMessage());
+            model.addAttribute("settings", userSettingsService.getUserSettings(userService.findByEmail(auth.getName())));
+            model.addAttribute("chatType", null);
+            model.addAttribute("userEmail", auth.getName());
+            return "notification-settings";
+        }
+    }
+
+    @PostMapping("/notification-settings/reset")
+    public String resetNotificationSettings(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            Model model,
+            Authentication auth) {
+        try {
+            User user = userService.findByEmail(auth.getName());
+            userSettingsService.resetNotificationSettings(user);
+            model.addAttribute("success", "Настройки уведомлений сброшены");
+            model.addAttribute("settings", userSettingsService.getUserSettings(user));
+            return "redirect:/notification-settings?page=" + page + "&size=" + size;
+        } catch (IllegalArgumentException e) {
+            model.addAttribute("error", e.getMessage());
+            model.addAttribute("settings", userSettingsService.getUserSettings(userService.findByEmail(auth.getName())));
+            model.addAttribute("chatType", null);
+            return "notification-settings";
+        }
     }
 
     @GetMapping("/change-password")

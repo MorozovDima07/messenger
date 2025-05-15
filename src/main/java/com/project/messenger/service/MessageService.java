@@ -1,17 +1,15 @@
 package com.project.messenger.service;
 
-import com.project.messenger.model.Chat;
-import com.project.messenger.model.Message;
-import com.project.messenger.model.User;
+import com.project.messenger.model.*;
 import com.project.messenger.repository.MessageRepository;
 import com.project.messenger.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class MessageService {
@@ -27,6 +25,9 @@ public class MessageService {
 
     @Autowired
     private FileService fileService;
+
+    @Autowired
+    private UserServiceInterface userService;
 
     @Autowired
     private NotificationService notificationService;
@@ -48,53 +49,50 @@ public class MessageService {
         message.setRead(false);
         message = messageRepository.save(message);
         message.getReadBy().add(sender);
-        notificationService.notifyNewMessage(chatId, message); // Нужна интеграция с уведомлениями
         return message;
     }
 
     @Transactional
-    public Message sendFile(Long chatId, MultipartFile file, Long senderId) {
-        Chat chat = chatService.getChat(chatId, userRepository.findById(senderId).get().getEmail());
-        User sender = userRepository.findById(senderId)
-                .orElseThrow(() -> new IllegalArgumentException("Отправитель не найден"));
+    public List<Message> markMessagesAsRead(Long chatId, String userEmail) {
+        Chat chat = chatService.getChatWithMembers(chatId, userEmail);
+        User currentUser = userService.findByEmail(userEmail);
+        List<Message> updatedMessages = new ArrayList<>();
 
-        Message message = new Message();
-        message.setChat(chat);
-        message.setSender(sender);
-        message.setContent("Файл загружен: " + file.getOriginalFilename());
-        message.setTimestamp(LocalDateTime.now());
-        message.setRead(false);
-        message = messageRepository.save(message);
+        List<Message> unreadMessages = messageRepository.findByChatIdAndIsReadFalse(chatId)
+                .stream()
+                .filter(message -> !message.getSender().getEmail().equals(userEmail))
+                .collect(Collectors.toList());
 
-        fileService.uploadFile(file, message);
-        notificationService.notifyNewMessage(chatId, message); // Нужна интеграция с уведомлениями
-        return message;
-    }
-
-    @Transactional
-    public void markMessageAsRead(Long messageId, Long userId) {
-        Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new IllegalArgumentException("Сообщение не найдено"));
-        message.setRead(true);
-        messageRepository.save(message);
-    }
-
-    public List<Message> getUnreadMessages(Long chatId, Long userId) {
-        return messageRepository.findByChatIdAndIsReadFalse(chatId);
-    }
-
-    @Transactional
-    public void markMessagesAsRead(Long chatId, Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
-        List<Message> unreadMessages = messageRepository.findUnreadByChatIdAndUser(chatId, user);
-        for (Message message : unreadMessages) {
-            message.getReadBy().add(user);
+        if (chat.getType() == ChatType.PERSONAL) {
+            for (Message message : unreadMessages) {
+                System.out.println("Прочитанность сообщений для личных чатов");
+                message.setRead(true);
+                messageRepository.save(message);
+                updatedMessages.add(message);
+            }
+        } else if (chat.getType() == ChatType.GROUP) {
+                    for (Message message : unreadMessages) {
+                        if (message.getReadBy() == null) {
+                            message.setReadBy(new HashSet<>());
+                        }
+                        System.out.println("Прочитанность сообщений для групповых чатов");
+                        message.getReadBy().add(currentUser);
+                        message.setRead(true);
+                        messageRepository.save(message);
+                        updatedMessages.add(message);
+                    }
         }
-        messageRepository.saveAll(unreadMessages);
+
+        return updatedMessages;
     }
 
-    public void save(Message message) {
-        messageRepository.save(message);
+    @Transactional
+    public Message save(Message message) {
+        return messageRepository.save(message);
+    }
+
+    @Transactional
+    public Optional<Message> findById(Long id) {
+        return messageRepository.findById(id);
     }
 }

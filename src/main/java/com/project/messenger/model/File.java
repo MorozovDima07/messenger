@@ -1,5 +1,6 @@
 package com.project.messenger.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -17,14 +18,18 @@ public class File {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotNull(message = "Сообщение обязательно")
     @ManyToOne
-    @JoinColumn(name = "message_id", nullable = false)
+    @JoinColumn(name = "message_id", nullable = true)
+    @JsonIgnore
     private Message message;
 
     @NotBlank(message = "Путь к файлу не может быть пустым")
     @Column(nullable = false)
     private String filePath;
+
+    private String contentType;
+
+    private Long fileSize;
 
     @NotBlank(message = "Имя файла не может быть пустым")
     @Column(nullable = false)

@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Group Chats - Members list</title>
     <link th:href="@{/static/site.css}" rel="stylesheet"/>
+    <meta name="user-email" th:content="${userEmail}"/>
+    <th:block th:replace="~{fragments/header :: head}"></th:block>
 </head>
 <body>
 <header>
@@ -12,17 +14,191 @@
     <th:block th:replace="~{fragments/header :: right-nav(${chat != null ? chat.name : 'Список участников чата'}, ${chat != null ? '/group-set?id=' + chat.id : null})}"></th:block>
 </header>
 <div class="container container-chats">
-    <th:block th:replace="~{fragments/chat-list :: chat-list(${chats})}"></th:block>
-    <ul class="members">
-        <li th:each="member : ${members}" th:class="li-members">
-            <span th:text="${member.user.email}"></span>
-            <span th:class="member-username" th:text="${member.user.username}"></span>
-            <form th:if="${!member.isAdmin}" th:action="@{/group/{id}/members/remove(id=${chatId})}" method="post" class="navbar-item">
-                <input type="hidden" name="userId" id="userId" th:value="${member.user.id}"/>
-                <button type="submit" class="logout-btn">Удалить</button>
-            </form>
-        </li>
-    </ul>
+    <th:block th:replace="~{fragments/chat-list :: chat-list(${chatsPage.content})}"></th:block>
+    <div class="chat">
+        <p class="h1-reg">Участники чата</p>
+        <div th:if="${error}" th:text="${error}" class="error"></div>
+        <ul id="members-list" class="members-list">
+            <li th:each="member : ${members.content}" th:class="'item-li'">
+                <div class="chats-item">
+                    <div class="circle">
+                        <img th:if="${member.avatarPath != null}" th:src="@{${member.avatarPath}}" alt="Avatar"/>
+                        <img th:unless="${member.avatarPath != null}" th:src="@{/static/icons/user.svg}" alt="Default Avatar"/>
+                    </div>
+                    <ul class="mess-info">
+                        <li class="guy-mess" th:text="${member.username}"></li>
+                        <li class="last-mess" th:text="${member.email}"></li>
+                        <li class="last-mess" th:text="${member.isOnline} ? 'Онлайн' : 'Оффлайн'"></li>
+                        <li class="last-mess" th:if="${member.isAdmin}" th:text="'(Админ)'"></li>
+                    </ul>
+                    <a th:if="${isAdmin and member.userId != currentUserId}"
+                       href="#" class="a-setting" th:onclick="'showRemoveConfirmation(' + ${member.userId} + ')'">
+                        <button class="btn btn-danger">Удалить</button>
+                    </a>
+                </div>
+            </li>
+            <li th:if="${members.isEmpty}" class="item-li">
+                <p>Нет участников</p>
+            </li>
+        </ul>
+        <div id="loading" style="display: none; text-align: center; padding: 20px;">
+            <span class="spinner"></span> Загрузка...
+        </div>
+        <div id="sentinel"></div>
+        <div id="removeConfirmationModal" style="display: none;" class="modal">
+            <div class="modal-content">
+                <p>Вы уверены, что хотите удалить этого участника?</p>
+                <form th:action="@{/group/{id}/members/remove(id=${chatId}, page=${members.number}, size=${members.size})}" method="post" onsubmit="addScrollPosition()">
+                    <input type="hidden" name="_csrf" th:value="${_csrf.token}"/>
+                    <input type="hidden" name="userId" id="removeUserId"/>
+                    <input type="hidden" name="scrollPosition" id="scrollPosition"/>
+                    <button type="submit" class="btn btn-danger">Да, удалить</button>
+                    <button type="button" class="btn btn-secondary" onclick="hideRemoveConfirmation()">Отмена</button>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
+<script th:inline="javascript">
+    let page = [[${members.number}]];
+    const size = [[${members.size}]];
+    const chatId = [[${chatId}]];
+    let isLoading = false;
+    const membersList = document.getElementById('members-list');
+    const loading = document.getElementById('loading');
+    const sentinel = document.getElementById('sentinel');
+    const csrfToken = [[${_csrf.token}]];
+    const cache = new Map();
+
+    window.scrollTo(0, [[${scrollPosition}]]);
+
+    const observer = new IntersectionObserver((entries) => {
+        const isIntersecting = entries[0].isIntersecting;
+        console.log(`IntersectionObserver triggered, isIntersecting=${isIntersecting}, isLoading=${isLoading}, sentinelVisible=${sentinel.getBoundingClientRect().top < window.innerHeight}`);
+        if (isIntersecting && !isLoading) {
+            console.log(`Loading page ${page + 1}`);
+            loadMoreMembers();
+        }
+    }, { threshold: 0.1, rootMargin: '50px' });
+
+    observer.observe(sentinel);
+
+    async function loadMoreMembers() {
+        const cacheKey = `${page + 1}-${size}`;
+        console.log(`Loading members for page ${page + 1}, size ${size}, cacheKey: ${cacheKey}`);
+        if (cache.has(cacheKey)) {
+            console.log(`Using cached data for ${cacheKey}`);
+            appendMembers(cache.get(cacheKey));
+            page++;
+            if (!hasMorePages(cache.get(cacheKey))) {
+                console.log('No more pages (cached), unobserving sentinel');
+                observer.unobserve(sentinel);
+            }
+            return;
+        }
+
+        isLoading = true;
+        console.log(`Setting isLoading=true`);
+        loading.style.display = 'block';
+        try {
+            const response = await fetch(`/group-list/${chatId}/members?page=${page + 1}&size=${size}`, {
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken
+                }
+            });
+            console.log(`Fetch response status: ${response.status}`);
+            if (!response.ok) {
+                throw new Error(`Failed to load members: ${response.status} ${response.statusText}`);
+            }
+            const data = await response.json();
+            console.log('Received data:', JSON.stringify(data, null, 2));
+            cache.set(cacheKey, data);
+            if (data.content.length > 0) {
+                page++;
+                console.log(`Incremented page to ${page}`);
+                appendMembers(data);
+                if (!hasMorePages(data)) {
+                    console.log('No more pages, unobserving sentinel');
+                    observer.unobserve(sentinel);
+                }
+            } else {
+                console.log('Empty content, unobserving sentinel');
+                observer.unobserve(sentinel);
+            }
+        } catch (error) {
+            console.error('Error loading members:', error, 'isLoading=', isLoading);
+            loading.innerHTML = '<p class="error">Ошибка загрузки. Попробуйте снова.</p>';
+            setTimeout(() => {
+                loading.style.display = 'none';
+                observer.observe(sentinel);
+            }, 3000);
+        } finally {
+            isLoading = false;
+            console.log(`Setting isLoading=false, page=${page}, documentHeight=${document.body.scrollHeight}, windowHeight=${window.innerHeight}, scrollY=${window.scrollY}`);
+            loading.style.display = 'none';
+            if (document.body.scrollHeight <= window.innerHeight + window.scrollY + 100 && hasMorePages(cache.get(cacheKey) || {})) {
+                console.log('Page too short and more data available, forcing sentinel visibility');
+                setTimeout(() => loadMoreMembers(), 100);
+            }
+        }
+    }
+
+    function hasMorePages(data) {
+        if (data.last !== undefined) {
+            console.log(`Using data.last=${data.last}`);
+            return !data.last;
+        }
+        if (data.totalPages !== undefined && data.number !== undefined) {
+            console.log(`Using totalPages=${data.totalPages}, number=${data.number}`);
+            return data.number + 1 < data.totalPages;
+        }
+        if (data.totalElements !== undefined && data.size !== undefined && data.number !== undefined) {
+            console.log(`Using totalElements=${data.totalElements}, size=${data.size}, number=${data.number}`);
+            return (data.number + 1) * data.size < data.totalElements;
+        }
+        console.warn('Невозможно определить есть ли еще страницы, предполагается, что больше нет');
+        return false;
+    }
+
+    function appendMembers(data) {
+        console.log(`Appending ${data.content.length} members`);
+        data.content.forEach(member => {
+            const li = document.createElement('li');
+            li.className = 'item-li';
+            li.innerHTML = `
+                <div class="chats-item">
+                    <div class="circle">
+                        <img src="${member.avatarPath || '/static/icons/user.svg'}" alt="Avatar"/>
+                    </div>
+                    <ul class="mess-info">
+                        <li class="guy-mess">${member.username}</li>
+                        <li class="last-mess">${member.email}</li>
+                        <li class="last-mess">${member.isOnline ? 'Онлайн' : 'Оффлайн'}</li>
+                        ${member.isAdmin ? '<li class="last-mess">(Админ)</li>' : ''}
+                    </ul>
+                    ${[[${isAdmin}]] && member.userId !== [[${currentUserId}]] ? `
+                        <a href="#" class="a-setting" onclick="showRemoveConfirmation(${member.userId})">
+                            <button class="btn btn-danger">Удалить</button>
+                        </a>
+                    ` : ''}
+                </div>
+            `;
+            membersList.appendChild(li);
+        });
+    }
+
+    function showRemoveConfirmation(userId) {
+        document.getElementById('removeUserId').value = userId;
+        document.getElementById('removeConfirmationModal').style.display = 'block';
+    }
+
+    function hideRemoveConfirmation() {
+        document.getElementById('removeConfirmationModal').style.display = 'none';
+    }
+
+    function addScrollPosition() {
+        document.getElementById('scrollPosition').value = window.scrollY;
+    }
+</script>
 </body>
 </html>

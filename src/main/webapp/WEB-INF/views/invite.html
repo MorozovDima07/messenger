@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Invite to Group - Messenger</title>
     <link th:href="@{/static/site.css}" rel="stylesheet"/>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css"/>
+    <meta name="user-email" th:content="${userEmail}"/>
+    <th:block th:replace="~{fragments/header :: head}"></th:block>
 </head>
 <body>
 <header>
@@ -12,16 +17,17 @@
     <th:block th:replace="~{fragments/header :: right-nav('Пригласить в группу', null)}"></th:block>
 </header>
 <div class="container container-chats">
-    <th:block th:replace="~{fragments/chat-list :: chat-list(${chats})}"></th:block>
+    <th:block th:replace="~{fragments/chat-list :: chat-list(${chatsPage.content})}"></th:block>
     <div class="chat">
         <div class="invite-container">
             <p class="h1-reg">Пригласить друзей</p>
             <div class="invite-link">
                 <p>Поделитесь ссылкой:</p>
-                <input type="text" th:value="${inviteLink}" class="input-reg" readonly/>
-                <button class="btn btn-reg" onclick="navigator.clipboard.writeText('${inviteLink}')">Копировать ссылку</button>
+                <input type="text" th:value="${inviteLink}" id="inviteLink" class="input-reg" readonly/>
+                <button class="btn btn-reg" onclick="copyLink()">Копировать ссылку</button>
             </div>
-            <form th:action="@{/group/{id}/members/add(id=${chat.id})}" method="post" class="ul-reg">
+            <form th:action="@{/group/{id}/members/add(id=${chat.id})}" method="post" th:object="${addMembersDTO}" class="ul-reg" id="inviteForm">
+                <input type="hidden" name="_csrf" th:value="${_csrf.token}"/>
                 <ul>
                     <li class="list-group-item item-reg">
                         Участники
@@ -29,17 +35,20 @@
                             <input type="email" name="emails" class="input-reg" placeholder="Введите email участника"/>
                         </div>
                         <button type="button" class="btn btn-reg" onclick="addEmailField()">Добавить участника</button>
+                        <div th:if="${#fields.hasErrors('emails')}" th:errors="*{emails}" class="error"></div>
                     </li>
                 </ul>
                 <div class="btn-group">
                     <button type="submit" class="btn btn-reg">Пригласить</button>
                 </div>
+                <div th:if="${error}" th:text="${error}" class="error"></div>
             </form>
         </div>
     </div>
 </div>
 <script>
     function addEmailField() {
+        console.log("Добавление нового поля email");
         const emailFields = document.getElementById("emailFields");
         const newField = document.createElement("input");
         newField.type = "email";
@@ -47,6 +56,53 @@
         newField.className = "input-reg";
         newField.placeholder = "Введите email участника";
         emailFields.appendChild(newField);
+        $(newField).autocomplete({
+            source: function(request, response) {
+                $.ajax({
+                    url: "/api/users/search",
+                    data: { query: request.term, chatType: 'group' },
+                    success: function(data) {
+                        console.log("Автодополнение возвращает: ", data);
+                        response(data);
+                    },
+                    error: function() {
+                        console.error("Ошибка при загрузке автодополнения");
+                        response([]);
+                    }
+                });
+            },
+            minLength: 2
+        });
+    }
+
+    $(document).ready(function() {
+        $("#emailFields input[name='emails']").autocomplete({
+            source: function(request, response) {
+                $.ajax({
+                    url: "/api/users/search",
+                    data: { query: request.term, chatType: 'group' },
+                    success: function(data) {
+                        console.log("Автодополнение возвращает: ", data);
+                        response(data);
+                    },
+                    error: function() {
+                        console.error("Ошибка при загрузке автодополнения");
+                        response([]);
+                    }
+                });
+            },
+            minLength: 2
+        });
+
+        $("#inviteForm").on("submit", function(event) {
+            console.log("Отправка формы с данными: ", $(this).serialize());
+        });
+    });
+
+    function copyLink() {
+        const linkInput = document.getElementById('inviteLink');
+        linkInput.select();
+        navigator.clipboard.writeText(linkInput.value);
     }
 </script>
 </body>

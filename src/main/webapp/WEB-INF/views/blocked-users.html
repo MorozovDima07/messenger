@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Blocked Users - Messenger</title>
     <link th:href="@{/static/site.css}" rel="stylesheet"/>
+    <meta name="user-email" th:content="${userEmail}"/>
+    <th:block th:replace="~{fragments/header :: head}"></th:block>
 </head>
 <body>
 <header>
@@ -12,22 +14,203 @@
     <th:block th:replace="~{fragments/header :: right-nav('Заблокированные пользователи', null)}"></th:block>
 </header>
 <div class="container container-chats">
-    <th:block th:replace="~{fragments/chat-list :: chat-list(${chats})}"></th:block>
+    <th:block th:replace="~{fragments/chat-list :: chat-list(${chatsPage.content})}"></th:block>
     <div class="chat">
-        <ul class="chats-ul">
-            <li class="item-li" th:each="blocked : ${blockedUsers}">
+        <p class="h1-reg">Заблокированные пользователи</p>
+        <div th:if="${success}" th:text="${success}" class="success"></div>
+        <div th:if="${error}" th:text="${error}" class="error"></div>
+        <ul id="blocked-users-list" class="blocked-users-ul">
+            <li class="item-li" th:each="blocked : ${blockedUsersPage.content}">
                 <div class="chats-item">
-                    <div class="circle"><img src="@{/static/icons/user.svg}"/></div>
+                    <div class="circle">
+                        <img th:if="${blocked.avatarPath != null}" th:src="@{${blocked.avatarPath}}" alt="Avatar" loading="lazy"/>
+                        <img th:unless="${blocked.avatarPath != null}" th:src="@{/static/icons/user.svg}" alt="Default Avatar" loading="lazy"/>
+                    </div>
                     <ul class="mess-info">
-                        <li class="guy-mess" th:text="${blocked.blockedUser.username}"></li>
+                        <li class="guy-mess" th:text="${blocked.username}"></li>
+                        <li class="last-mess" th:if="${blocked.emailVisible}" th:text="${blocked.email}"></li>
+                        <li class="last-mess" th:unless="${blocked.emailVisible}">Email скрыт</li>
                     </ul>
-                    <form th:action="@{/blocked-users/unblock(id=${blocked.blockedUser.id})}" method="post" class="btn btn-reg">
-                        <button type="submit" class="btn btn-reg">Разблокировать</button>
-                    </form>
+                    <a href="#" class="a-setting unblock" th:onclick="|showUnblockConfirmation(${blocked.id})|">
+                        <button class="btn btn-reg">Разблокировать</button>
+                    </a>
                 </div>
             </li>
+            <li th:if="${blockedUsersPage.isEmpty}" class="item-li">
+                <p>Нет заблокированных пользователей</p>
+            </li>
         </ul>
+        <div id="loading" style="display: none; text-align: center; padding: 20px;">
+            <span class="spinner"></span> Загрузка...
+        </div>
+        <div id="sentinel" style="height: 1px;"></div>
+        <div id="unblockConfirmationModal" style="display: none;" class="modal">
+            <div class="modal-content">
+                <p>Вы уверены, что хотите разблокировать этого пользователя?</p>
+                <form th:action="@{/blocked-users/unblock(page=${blockedUsersPage.number}, size=${blockedUsersPage.size})}" method="post" onsubmit="addScrollPosition()">
+                    <input type="hidden" name="_csrf" th:value="${_csrf.token}"/>
+                    <input type="hidden" name="id" id="unblockUserId"/>
+                    <input type="hidden" name="scrollPosition" id="scrollPosition"/>
+                    <button type="submit" class="btn btn-danger">Да, разблокировать</button>
+                    <button type="button" class="btn btn-secondary" onclick="hideUnblockConfirmation()">Отмена</button>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
+<script th:inline="javascript">
+    function showUnblockConfirmation(userId) {
+        const unblockUserId = document.getElementById('unblockUserId');
+        if (unblockUserId) {
+            unblockUserId.value = userId;
+            document.getElementById('unblockConfirmationModal').style.display = 'block';
+        }
+    }
+
+    function hideUnblockConfirmation() {
+        const modal = document.getElementById('unblockConfirmationModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        let page = /*[[${blockedUsersPage.number}]]*/ 0;
+        const size = /*[[${blockedUsersPage.size}]]*/ 10;
+        let isLoading = false;
+        const blockedUsersList = document.getElementById('blocked-users-list');
+        const loading = document.getElementById('loading');
+        const sentinel = document.getElementById('sentinel');
+        const csrfToken = /*[[${_csrf.token}]]*/ '';
+        const cache = new Map();
+
+        window.scrollTo(0, /*[[${scrollPosition}]]*/ 0);
+
+        if (!blockedUsersList || !sentinel) {
+            return;
+        }
+
+        function saveScrollPosition() {
+            const scrollPosition = document.getElementById('scrollPosition');
+            if (scrollPosition) {
+                scrollPosition.value = window.scrollY;
+            }
+        }
+
+        const observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting && !isLoading) {
+                loadMoreBlockedUsers();
+            }
+        }, { threshold: 0.1, rootMargin: '50px' });
+
+        observer.observe(sentinel);
+
+        async function loadMoreBlockedUsers() {
+            if (!blockedUsersList) {
+                return;
+            }
+
+            const cacheKey = `${page + 1}-${size}`;
+            if (cache.has(cacheKey)) {
+                appendBlockedUsers(cache.get(cacheKey));
+                page++;
+                if (!hasMorePages(cache.get(cacheKey))) {
+                    observer.unobserve(sentinel);
+                }
+                return;
+            }
+
+            isLoading = true;
+            loading.style.display = 'block';
+            loading.classList.add('loading-active');
+            try {
+                const response = await fetch(`/blocked-users/list?page=${page + 1}&size=${size}`, {
+                    headers: { 'X-CSRF-TOKEN': csrfToken }
+                });
+                if (!response.ok) {
+                    throw new Error();
+                }
+                const data = await response.json();
+                cache.set(cacheKey, data);
+                if (data.content && data.content.length > 0) {
+                    page++;
+                    appendBlockedUsers(data);
+                    if (!hasMorePages(data)) {
+                        observer.unobserve(sentinel);
+                    }
+                } else {
+                    observer.unobserve(sentinel);
+                }
+            } catch {
+                loading.innerHTML = '<p class="error">Ошибка загрузки. Попробуйте снова.</p>';
+                setTimeout(() => {
+                    loading.innerHTML = '<span class="spinner"></span> Загрузка...';
+                    loading.style.display = 'none';
+                    loading.classList.remove('loading-active');
+                    observer.observe(sentinel);
+                }, 3000);
+            } finally {
+                isLoading = false;
+                loading.style.display = 'none';
+                loading.classList.remove('loading-active');
+                if (document.body.scrollHeight <= window.innerHeight + window.scrollY + 100 && hasMorePages(cache.get(cacheKey) || {})) {
+                    setTimeout(() => loadMoreBlockedUsers(), 100);
+                }
+            }
+        }
+
+        function hasMorePages(data) {
+            if (data.last !== undefined) {
+                return !data.last;
+            }
+            if (data.totalPages !== undefined && data.number !== undefined) {
+                return data.number + 1 < data.totalPages;
+            }
+            if (data.totalElements !== undefined && data.size !== undefined && data.number !== undefined) {
+                return (data.number + 1) * data.size < data.totalElements;
+            }
+            return false;
+        }
+
+        function appendBlockedUsers(data) {
+            if (!blockedUsersList || !data.content) {
+                return;
+            }
+            data.content.forEach(user => {
+                if (!user || !user.id) {
+                    return;
+                }
+                const li = document.createElement('li');
+                li.className = 'item-li';
+                li.innerHTML = `
+                    <div class="chats-item">
+                        <div class="circle">
+                            <img src="${user.avatarPath ? user.avatarPath : '/static/icons/user.svg'}" alt="Avatar" loading="lazy"/>
+                        </div>
+                        <ul class="mess-info">
+                            <li class="guy-mess">${user.username || 'Unknown'}</li>
+                            <li class="last-mess">${user.emailVisible ? user.email || 'No email' : 'Email скрыт'}</li>
+                        </ul>
+                        <a href="#" class="a-setting unblock" onclick="showUnblockConfirmation(${user.id})">
+                            <button class="btn btn-reg">Разблокировать</button>
+                        </a>
+                    </div>
+                `;
+                blockedUsersList.appendChild(li);
+            });
+        }
+
+        function addScrollPosition() {
+            const scrollPosition = document.getElementById('scrollPosition');
+            if (scrollPosition) {
+                scrollPosition.value = window.scrollY;
+            }
+        }
+
+        if (document.body.scrollHeight <= window.innerHeight + window.scrollY + 100) {
+            loadMoreBlockedUsers();
+        }
+    });
+</script>
 </body>
 </html>

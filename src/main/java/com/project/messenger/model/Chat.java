@@ -1,14 +1,17 @@
 package com.project.messenger.model;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
-@Table(name = "chats")
+@Table(name = "chats", indexes = {
+        @Index(name = "idx_invite_link", columnList = "invite_link", unique = true),
+        @Index(name = "idx_created_by", columnList = "created_by")
+})
 @Data
 public class Chat {
     @Id
@@ -20,9 +23,12 @@ public class Chat {
     @Column(nullable = false)
     private ChatType type;
 
+    @Column(name = "invite_link")
     private String inviteLink;
 
     private String name;
+
+    private String avatarPath;
 
     @NotNull(message = "Создатель чата обязателен")
     @ManyToOne
@@ -34,5 +40,8 @@ public class Chat {
 
     @OneToMany(mappedBy = "chat", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Message> messages;
+
+    @Column(name = "last_message_timestamp")
+    private LocalDateTime lastMessageTimestamp;
 }
 

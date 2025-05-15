@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Direct Settings - Messenger</title>
     <link th:href="@{/static/site.css}" rel="stylesheet"/>
+    <meta name="user-email" th:content="${userEmail}"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <th:block th:replace="~{fragments/header :: head}"></th:block>
 </head>
 <body>
 <header>
@@ -12,12 +16,12 @@
     <th:block th:replace="~{fragments/header :: right-nav(${contact.username}, ${chat != null ? '/direct?id=' + chat.id : null})}"></th:block>
 </header>
 <div class="container container-chats">
-    <th:block th:replace="~{fragments/chat-list :: chat-list(${chats})}"></th:block>
+    <th:block th:replace="~{fragments/chat-list :: chat-list(${chatsPage.content})}"></th:block>
     <div class="chat-set">
         <div class="main">
             <div class="div-messages">
-                <ul class="messages">
-                    <li th:each="message : ${messages}" th:class="${message.userSend} ? 'message user-send' : 'message message-with-ava'">
+                <ul class="messages" id="messages">
+                    <li th:each="message : ${messages}" th:class="${message.userSend} ? 'message user-send' : 'message message-with-ava'" data-server-message="true" th:attr="data-message-id=${message.id}">
                         <div class="message-avatar" th:if="${!message.userSend}">
                             <div class="circleSmallAvatar">
                                 <img th:if="${message.userAvatar != null}" th:src="@{${message.userAvatar}}" alt="Avatar"/>
@@ -28,7 +32,28 @@
                             <div class="user-name" th:text="${message.senderUsername}"></div>
                             <span th:text="${message.content}"></span>
                             <div class="file-list" th:if="${message.files != null and !message.files.isEmpty()}">
-                                <a th:each="file : ${message.files}" th:href="@{/file/{id}(id=${file.id})}" th:text="${file.fileName}" class="file-chip"></a>
+                                <div th:each="file : ${message.files}">
+                                    <div th:if="${file.contentType != null and file.contentType.startsWith('image/')}">
+                                        <img th:src="@{/file/{id}(id=${file.id})}" th:alt="${file.fileName}" class="file-preview-img"/>
+                                    </div>
+                                    <div th:if="${file.contentType != null and file.contentType.startsWith('video/')}">
+                                        <video controls class="file-preview-video">
+                                            <source th:src="@{/file/{id}(id=${file.id})}" th:type="${file.contentType}"/>
+                                            Ваш браузер не поддерживает видео.
+                                        </video>
+                                        <a th:href="@{/file/{id}(id=${file.id})}" th:text="${file.fileName}" class="file-chip"></a>
+                                    </div>
+                                    <div th:if="${file.contentType != null and file.contentType.startsWith('audio/')}">
+                                        <audio controls class="file-preview-audio">
+                                            <source th:src="@{/file/{id}(id=${file.id})}" th:type="${file.contentType}"/>
+                                            Ваш браузер не поддерживает аудио.
+                                        </audio>
+                                        <a th:href="@{/file/{id}(id=${file.id})}" th:text="${file.fileName}" class="file-chip"></a>
+                                    </div>
+                                    <div th:if="${file.contentType == null or (!file.contentType.startsWith('image/') and !file.contentType.startsWith('video/') and !file.contentType.startsWith('audio/'))}">
+                                        <a th:href="@{/file/{id}(id=${file.id})}" th:text="${file.fileName}" class="file-chip"></a>
+                                    </div>
+                                </div>
                             </div>
                             <div class="date-last-mess mess-date">
                                 <img th:if="${message.read}" th:src="@{/static/icons/read.svg}"/>
@@ -40,7 +65,7 @@
                 </ul>
             </div>
             <div class="send-message">
-                <form th:action="@{/chats/{id}/send(id=${chat.id})}" method="post" enctype="multipart/form-data" class="chat-send" id="chatSendForm">
+                <form id="chatSendForm" class="chat-send" onsubmit="return false;">
                     <label class="chat-list-item chat-list-item-sendfile">
                         <img th:src="@{/static/icons/attach.svg}" class="attach-icon"/>
                         <input type="file" name="tempFiles" multiple style="display: none;" onchange="addFiles(this)"/>
@@ -56,7 +81,7 @@
             </div>
         </div>
         <div class="add-set">
-            <div class="ava">
+            <div class="ava ava-set">
                 <div class="circleBigAvatar">
                     <img th:if="${contact.avatarPath != null}" th:src="@{${contact.avatarPath}}" alt="Avatar"/>
                     <img th:unless="${contact.avatarPath != null}" th:src="@{/static/icons/user.svg}" alt="Default Avatar"/>
@@ -65,86 +90,552 @@
             <div class="cont-info cont-info-set">
                 <li class="cont-name" th:text="${contact.username}"></li>
             </div>
-            <ul class="settings">
-                <li class="li-setting"><img th:src="@{/static/icons/email.svg}"/><div class="setting-text" th:text="${contact.email}"></div></li>
-                <li class="setting">
-                    <a th:href="@{/direct/{id}/info(id=${chat.id})}" class="a-setting">
-                        <img th:src="@{/static/icons/info.svg}"/>
-                        <div class="setting-text">Информация о пользователе</div>
-                    </a>
+            <ul class="settings settings-col-wrapper">
+                <li class="setting-row">
+                    <div class="setting-icon-col">
+                        <img th:src="@{/static/icons/email.svg}" class="settings-icon"/>
+                    </div>
+                    <div class="setting-content-col">
+                        <span class="email-copy content-aligner" th:attr="data-email=${contact.email}" th:onclick="copyEmail([[${contact.email}]])">
+                            <span class="email-copy-text" th:text="${contact.email}"></span>
+                            <img th:src="@{/static/icons/copy.svg}" class="email-copy-icon"/>
+                        </span>
+                    </div>
                 </li>
-                <li class="setting">
-                    <form th:action="@{/direct/{id}/toggle-notifications(id=${chat.id})}" method="post" style="display: inline;">
-                        <button type="submit" class="a-setting" style="background: none; border: none; padding: 0; cursor: pointer;">
-                            <img th:src="@{/static/icons/notifications.svg}"/>
-                            <div class="setting-text">Уведомления</div>
-                            <div class="circleChangeNotificationMode" th:text="${notificationsEnabled} ? 'ВКЛ' : 'ВЫКЛ'"></div>
-                        </button>
-                    </form>
+                <li class="setting-row">
+                    <div class="setting-icon-col">
+                        <img th:src="@{/static/icons/notifications.svg}" class="settings-icon"/>
+                    </div>
+                    <div class="setting-content-col">
+                        <form th:action="@{/chats/{id}/notifications(id=${chat.id})}" class="not-form" method="post">
+                            <input type="hidden" name="enabled" th:value="${notifications == T(com.project.messenger.model.NotificationLevel).ALL ? 'false' : 'true'}"/>
+                            <button type="submit" class="a-setting content-aligner" style="background: none; border: none; padding: 0; cursor: pointer; width: 100%;">
+                                <div class="setting-text">Уведомления</div>
+                                <div class="toggle-wrapper">
+                                    <div class="circleChangeNotificationMode"
+                                         th:classappend="${notifications == T(com.project.messenger.model.NotificationLevel).ALL ? 'notification-on' : 'notification-off'}"
+                                         th:text="${notifications == T(com.project.messenger.model.NotificationLevel).ALL ? 'ВКЛ' : 'ВЫКЛ'}"></div>
+                                </div>
+                            </button>
+                        </form>
+                    </div>
                 </li>
-                <li class="setting">
-                    <a th:href="@{/chat/{id}/files(id=${chat.id})}" class="a-setting">
-                        <img th:src="@{/static/icons/files.svg}"/>
-                        <div class="setting-text">Файлы</div>
-                    </a>
+                <li class="setting-row">
+                    <div class="setting-icon-col">
+                        <img th:src="@{/static/icons/files.svg}" class="settings-icon"/>
+                    </div>
+                    <div class="setting-content-col">
+                        <a th:href="@{/chat/{id}/files(id=${chat.id})}" class="a-setting">
+                            <div class="setting-text">Файлы</div>
+                        </a>
+                    </div>
                 </li>
-                <li class="setting">
-                    <a th:href="@{/direct/{id}/share(id=${chat.id})}" class="a-setting">
-                        <img th:src="@{/static/icons/share.svg}"/>
-                        <div class="setting-text">Поделиться контактом</div>
-                    </a>
+                <li class="setting-row">
+                    <div class="setting-icon-col">
+                        <img th:src="@{/static/icons/block.svg}" class="settings-icon"/>
+                    </div>
+                    <div class="setting-content-col">
+                        <form th:action="@{/direct/{id}/block(id=${chat.id})}" method="post">
+                            <button type="submit" class="a-setting" style="background: none; border: none; padding: 0; cursor: pointer;">
+                                <div class="setting-text">Заблокировать</div>
+                            </button>
+                        </form>
+                    </div>
                 </li>
-                <li class="setting">
-                    <a th:href="@{/direct/{id}/delete(id=${chat.id})}" class="a-setting">
-                        <img th:src="@{/static/icons/trash.svg}"/>
-                        <div class="setting-text">Удалить контакт</div>
-                    </a>
-                </li>
-                <li class="setting">
-                    <form th:action="@{/direct/{id}/block(id=${chat.id})}" method="post" class="a-setting">
-                        <img th:src="@{/static/icons/block.svg}"/>
-                        <button type="submit" class="setting-text">Заблокировать</button>
-                    </form>
-                </li>
-                <li class="setting" th:if="${currentMember != null}">
-                    <a th:if="${currentMember.isAdmin}" th:href="@{/chats/{id}/delete(id=${chat.id})}" class="a-setting">
-                        <img th:src="@{/static/icons/trash.svg}"/>
-                        <div class="setting-text">Удалить чат</div>
-                    </a>
-                    <a th:unless="${currentMember.isAdmin}" th:href="@{/group/{id}/leave(id=${chat.id})}" class="a-setting">
-                        <img th:src="@{/static/icons/leave.svg}"/>
-                        <div class="setting-text">Покинуть чат</div>
-                    </a>
+                <li class="setting-row">
+                    <div class="setting-icon-col">
+                        <img th:src="@{/static/icons/trash.svg}" class="settings-icon"/>
+                    </div>
+                    <div class="setting-content-col">
+                        <form th:action="@{/chats/{id}/delete(id=${chat.id})}" method="post" class="setting-text" onsubmit="return confirm('Вы уверены, что хотите удалить чат?');">
+                            <button type="submit" class="a-setting new-button">
+                                <div>Удалить чат</div>
+                            </button>
+                        </form>
+                    </div>
                 </li>
             </ul>
         </div>
     </div>
 </div>
+<input type="hidden" id="chatType" th:value="${chat != null ? chat.type : ''}">
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+<meta name="user-email" th:content="${userEmail}"/>
+
 <script th:inline="javascript">
     let accumulatedFiles = [];
+    var chatId = [[${chat != null} ? ${chat.id} : null]];
+    var chatType = document.getElementById('chatType').value;
+    var initialMessagesLoaded = true;
 
-    document.addEventListener('DOMContentLoaded', function() {
-        const form = document.getElementById('chatSendForm');
-        form.addEventListener('submit', function(event) {
-            const content = document.querySelector('.input-mess').value.trim();
-            if (!content && accumulatedFiles.length === 0) {
-                event.preventDefault();
+    if (!window.messenger || !window.messenger.userEmail) {
+        console.warn('window.messenger или window.messenger.userEmail не определены');
+    }
+
+    let csrfToken = window.messenger.getCsrfToken ? window.messenger.getCsrfToken() : document.querySelector('meta[name="_csrf"]')?.getAttribute('content') || null;
+    let csrfHeader = window.messenger.getCsrfHeader ? window.messenger.getCsrfHeader() : document.querySelector('meta[name="_csrf_header"]')?.getAttribute('content') || null;
+
+    console.log('Начальный userEmail: ', window.messenger.userEmail);
+    console.log('Начальный chatId: ', chatId);
+    console.log('Начальный chatType: ', chatType);
+    console.log('Начальный CSRF-токен: ', csrfToken);
+
+    var chatSocket = null;
+    var chatStompClient = null;
+    var chatSubscription = null;
+    var reconnectAttemptsChat = 0;
+    var maxReconnectAttempts = 5;
+    var reconnectDelay = 1000;
+
+    var nextPageToLoad = 1;
+    var isLoading = false;
+    var hasMoreMessages = true;
+
+    function markMessagesAsRead() {
+        if (chatId && chatType === 'PERSONAL' && chatStompClient && chatStompClient.connected) {
+            console.log('Отправка уведомления о прочтении для chatId: ', chatId);
+            chatStompClient.send(`/app/chat/${chatId}/read`, {}, JSON.stringify({}));
+        }
+    }
+
+    function connectChatWebSocket() {
+        if (!chatId) {
+            console.log('Нет chatId, пропускаем подключение WebSocket чата');
+            return;
+        }
+        if (chatSocket && chatSocket.readyState === WebSocket.OPEN) {
+            console.log('Chat WebSocket уже открыт');
+            return;
+        }
+        console.log('Подключение WebSocket чата с chatId: ' + chatId + ', userEmail: ' + window.messenger.userEmail + ', chatType: ' + chatType);
+        chatSocket = new SockJS('/ws', null, { withCredentials: true });
+        chatStompClient = Stomp.over(chatSocket);
+
+        chatStompClient.connect({}, function(frame) {
+            console.log('Chat STOMP Connected: ' + frame);
+            reconnectAttemptsChat = 0;
+            if (chatSubscription) {
+                console.log('Отписка от предыдущей подписки чата');
+                chatSubscription.unsubscribe();
+                chatSubscription = null;
+            }
+            if (chatType === 'PERSONAL') {
+                console.log('Подписка на /user/queue/private');
+                chatSubscription = chatStompClient.subscribe('/user/queue/private', function(message) {
+                    console.log('Получено сообщение: ', message.body);
+                    var msg = JSON.parse(message.body);
+                    if (msg.chatId == chatId) {
+                        const messageId = msg.messageId || msg.id;
+                        if (initialMessagesLoaded && messageId && document.querySelector(`li[data-message-id="${messageId}"]`)) {
+                            console.log('Сообщение уже загружено, обновляем: ', messageId);
+                            const existingMessage = document.querySelector(`li[data-message-id="${messageId}"]`);
+                            updateMessageElement(existingMessage, msg);
+                        } else {
+                            addMessageToChat(msg);
+                        }
+                        if (!msg.read && msg.senderEmail !== window.messenger.userEmail && chatType === 'PERSONAL') {
+                            setTimeout(() => {
+                                if (chatStompClient && chatStompClient.connected) {
+                                    console.log('Отправка read для messageId: ', msg.messageId);
+                                    chatStompClient.send(`/app/chat/${msg.chatId}/read`, {}, JSON.stringify({}));
+                                }
+                            }, 500);
+                        }
+                    }
+                });
+            } else if (chatType === 'GROUP') {
+                console.log('Подписка на /topic/chat/' + chatId);
+                chatSubscription = chatStompClient.subscribe('/topic/chat/' + chatId, function(message) {
+                    console.log('Получено сообщение: ', message.body);
+                    var msg = JSON.parse(message.body);
+                    if (msg.chatId == chatId) {
+                        const messageId = msg.messageId || msg.id;
+                        if (initialMessagesLoaded && messageId && document.querySelector(`li[data-message-id="${messageId}"]`)) {
+                            console.log('Сообщение уже загружено, пропускаем: ', messageId);
+                            return;
+                        }
+                        addMessageToChat(msg);
+                    }
+                });
+            }
+            chatStompClient.send("/app/chat/" + chatId + "/join", {}, JSON.stringify({}));
+            if (chatType === 'PERSONAL') {
+                markMessagesAsRead();
+            }
+        }, function(error) {
+            console.error('Ошибка соединения Chat STOMP: ', error);
+            if (chatSubscription) {
+                chatSubscription.unsubscribe();
+                chatSubscription = null;
+            }
+            if (chatStompClient) {
+                chatStompClient.disconnect();
+                chatStompClient = null;
+            }
+            scheduleReconnect('chat');
+        });
+
+        chatSocket.onclose = function(event) {
+            console.log('Chat WebSocket закрыт: ', event);
+            scheduleReconnect('chat');
+        };
+    }
+
+    function switchChat(newChatId, newChatType) {
+        if (newChatId === chatId) {
+            console.log('ChatId не изменился: ', newChatId);
+            return;
+        }
+        if (chatId && chatStompClient && chatStompClient.connected) {
+            console.log('Отправка сообщения leave для chatId: ' + chatId);
+            chatStompClient.send("/app/chat/" + chatId + "/leave", {}, JSON.stringify({}));
+        }
+        fetch(`/direct-set?id=${newChatId}`, {
+            headers: {
+                [csrfHeader]: csrfToken
+            }
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Ошибка загрузки чата: ' + response.statusText);
+                }
+                return response.text();
+            })
+            .then(html => {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                // Обновляем CSRF-токен
+                const newCsrfToken = doc.querySelector('meta[name="_csrf"]')?.getAttribute('content');
+                const newCsrfHeader = doc.querySelector('meta[name="_csrf_header"]')?.getAttribute('content');
+                if (newCsrfToken && newCsrfHeader) {
+                    csrfToken = newCsrfToken;
+                    csrfHeader = newCsrfHeader;
+                    if (window.messenger) {
+                        window.messenger.getCsrfToken = function() { return newCsrfToken; };
+                        window.messenger.getCsrfHeader = function() { return newCsrfHeader; };
+                    }
+                    console.log('CSRF-токен обновлён: ', csrfToken);
+                } else {
+                    console.warn('Не удалось обновить CSRF-токен');
+                }
+
+                const newChatContent = doc.querySelector('.container-chats');
+                if (newChatContent) {
+                    document.querySelector('.container-chats').outerHTML = newChatContent.outerHTML;
+                }
+                const newTitle = doc.querySelector('.cont-name');
+                if (newTitle) {
+                    document.querySelector('.cont-name').textContent = newTitle.textContent;
+                }
+                chatType = newChatType || 'PERSONAL';
+                chatId = newChatId;
+                nextPageToLoad = 1;
+                hasMoreMessages = true;
+                initialMessagesLoaded = true;
+                connectChatWebSocket();
+                bindChatItemListeners();
+                bindFormListener();
+                const messagesList = document.getElementById('messages');
+                if (messagesList) {
+                    messagesList.scrollTop = messagesList.scrollHeight;
+                }
+                history.pushState({}, '', `/direct-set?id=${newChatId}`);
+                if (typeof fetchOnlineUsers === 'function') {
+                    setTimeout(fetchOnlineUsers, 500);
+                } else {
+                    console.warn('fetchOnlineUsers не определён');
+                }
+                // Проверяем, не подключён ли уже notification WebSocket
+                if (typeof connectNotificationWebSocket === 'function' && (!window.notificationSocket || window.notificationSocket.readyState !== WebSocket.OPEN)) {
+                    connectNotificationWebSocket();
+                } else {
+                    console.log('Notification WebSocket уже подключён или connectNotificationWebSocket не определён');
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка загрузки чата:', error);
+                alert('Не удалось загрузить чат: ' + error.message);
+            });
+    }
+
+    function bindChatItemListeners() {
+        const chatItems = document.querySelectorAll('#chats-list li.item-li');
+        chatItems.forEach(item => {
+            const newChatId = item.dataset.chatId;
+            const userEmail = item.dataset.userEmail;
+            if (!newChatId) {
+                console.warn('Chat item без атрибута data-chat-id', item);
                 return;
             }
-            const dataTransfer = new DataTransfer();
-            accumulatedFiles.forEach(file => dataTransfer.items.add(file));
-            const fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.name = 'files';
-            fileInput.multiple = true;
-            fileInput.files = dataTransfer.files;
-            fileInput.style.display = 'none';
-            form.appendChild(fileInput);
+            item.removeEventListener('click', handleChatItemClick);
+            item.addEventListener('click', handleChatItemClick);
+            // Синхронизация статуса онлайна
+            if (userEmail && typeof updateOnlineStatus === 'function') {
+                updateOnlineStatus(userEmail, onlineUsers.has(userEmail));
+            }
         });
-    });
+    }
+
+    function handleChatItemClick(event) {
+        event.preventDefault();
+        const item = event.currentTarget;
+        const newChatId = item.dataset.chatId;
+        const newChatType = item.dataset.chatType || 'PERSONAL';
+        switchChat(newChatId, newChatType);
+    }
+
+    function bindFormListener() {
+        const form = document.getElementById('chatSendForm');
+        if (form) {
+            form.removeEventListener('submit', handleFormSubmit);
+            form.addEventListener('submit', handleFormSubmit);
+            console.log('Обработчик формы привязан');
+        } else {
+            console.warn('Форма #chatSendForm не найдена');
+        }
+    }
+
+    function handleFormSubmit(event) {
+        event.preventDefault();
+        console.log('Отправка формы начата');
+        const content = document.querySelector('.input-mess')?.value.trim();
+        if (!content && accumulatedFiles.length === 0) {
+            console.log('Сообщение пустое и нет файлов, пропускаем');
+            return;
+        }
+        sendMessage(content, accumulatedFiles)
+            .then(() => {
+                console.log('Сообщение успешно отправлено');
+                const input = document.querySelector('.input-mess');
+                if (input) input.value = '';
+                accumulatedFiles = [];
+                updateFilePreview();
+            })
+            .catch(error => {
+                console.error('Ошибка отправки сообщения:', error);
+                alert('Не удалось отправить сообщение: ' + error.message);
+            });
+    }
+
+    async function sendMessage(content, files) {
+        console.log('sendMessage started, chatId:', chatId, 'content:', content, 'files:', files.length);
+        if (!chatId) {
+            console.error('chatId не определён');
+            alert('Пожалуйста, выберите чат для отправки сообщения');
+            return;
+        }
+        if (!csrfToken || !csrfHeader) {
+            console.error('CSRF-токен или заголовок не определены');
+            alert('Ошибка: CSRF-токен не доступен');
+            return;
+        }
+        let fileIds = [];
+        let messageId = null;
+        let tempMessageId = Date.now().toString();
+        if (files.length > 0 || content) {
+            const tempMessage = {
+                content: content || null,
+                files: files.length > 0 ? files.map(file => ({ fileName: file.name, isUploading: true })) : [],
+                tempId: tempMessageId,
+                senderEmail: window.messenger.userEmail,
+                senderUsername: 'Вы',
+                sentAt: null,
+                read: false
+            };
+            console.log('Добавление временного сообщения:', tempMessage);
+            addMessageToChat(tempMessage);
+        }
+        if (files.length > 0) {
+            const formData = new FormData();
+            files.forEach(file => {
+                if (file.size <= 10 * 1024 * 1024) {
+                    formData.append('files', file);
+                } else {
+                    alert(`Файл ${file.name} превышает лимит в 10 МБ`);
+                }
+            });
+            try {
+                const uploadUrl = `/chats/${chatId}/upload`;
+                console.log('Загрузка файлов на:', uploadUrl, 'с CSRF-токеном:', csrfToken);
+                const response = await fetch(uploadUrl, {
+                    method: 'POST',
+                    headers: {
+                        [csrfHeader]: csrfToken
+                    },
+                    body: formData
+                });
+                if (!response.ok) {
+                    const errorBody = await response.json();
+                    throw new Error('Ошибка загрузки файлов: ' + (errorBody.message || 'неизвестная ошибка'));
+                }
+                const uploadResult = await response.json();
+                fileIds = uploadResult.fileIds || uploadResult;
+                messageId = uploadResult.messageId || null;
+                console.log('Загружены файлы с ID:', fileIds, 'messageId:', messageId);
+            } catch (error) {
+                console.error('Ошибка загрузки файлов:', error);
+                alert('Не удалось загрузить файлы: ' + error.message);
+                removeTempMessage(tempMessageId);
+                throw error;
+            }
+        }
+        if (content || fileIds.length > 0) {
+            const message = {
+                content: content || null,
+                files: fileIds.map(id => ({ id: id })),
+                tempId: tempMessageId,
+                messageId: messageId
+            };
+            if (chatStompClient && chatStompClient.connected) {
+                console.log('Отправка сообщения в /app/chat/' + chatId, message);
+                chatStompClient.send("/app/chat/" + chatId, {}, JSON.stringify(message));
+            } else {
+                console.error('Chat WebSocket не подключён');
+                removeTempMessage(tempMessageId);
+                alert('Не удалось отправить сообщение: WebSocket не подключён');
+                throw new Error('WebSocket не подключён');
+            }
+        }
+        console.log('sendMessage completed');
+    }
+
+    function addMessageToChat(message) {
+        console.log('Добавление сообщения в чат: ', JSON.stringify(message, null, 2));
+        const senderEmail = (message.senderEmail || '').trim().toLowerCase();
+        const currentUserEmail = (window.messenger.userEmail || '').trim().toLowerCase();
+        const isUserSend = senderEmail === currentUserEmail;
+        const messagesList = document.getElementById('messages');
+        if (!messagesList) {
+            console.error('Элемент #messages не найден');
+            return;
+        }
+        const messageId = message.messageId || message.id || (message.sentAt ? `final-${message.sentAt}` : message.tempId);
+        if (!messageId) {
+            console.warn('Сообщение без ID, пропускаем: ', message);
+            return;
+        }
+        const existingMessage = document.querySelector(`li[data-message-id="${messageId}"]`);
+        if (existingMessage) {
+            updateMessageElement(existingMessage, message);
+            console.log('Сообщение обновлено: ', messageId);
+            return;
+        }
+        if (message.tempId && (message.sentAt || message.messageId || message.id)) {
+            removeTempMessage(message.tempId);
+        }
+        if (message.sentAt && !message.date) {
+            try {
+                const sentAt = new Date(message.sentAt);
+                const day = String(sentAt.getDate()).padStart(2, '0');
+                const month = String(sentAt.getMonth() + 1).padStart(2, '0');
+                const year = sentAt.getFullYear();
+                const hours = String(sentAt.getHours()).padStart(2, '0');
+                const minutes = String(sentAt.getMinutes()).padStart(2, '0');
+                message.date = `${day}.${month}.${year} ${hours}:${minutes}`;
+            } catch (e) {
+                console.warn('Ошибка форматирования sentAt: ', message.sentAt, e);
+                const now = new Date();
+                const day = String(now.getDate()).padStart(2, '0');
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const year = now.getFullYear();
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                message.date = `${day}.${month}.${year} ${hours}:${minutes}`;
+            }
+        }
+        message.userAvatar = message.senderAvatarPath || '/static/icons/user.svg';
+        const li = createMessageElement(message, isUserSend, messageId);
+        messagesList.appendChild(li);
+        messagesList.scrollTop = messagesList.scrollHeight;
+    }
+
+    function updateMessageElement(element, message) {
+        const readIcon = element.querySelector('.mess-date img');
+        if (readIcon) {
+            readIcon.src = message.read ? '/static/icons/read.svg' : '/static/icons/unread.svg';
+        } else {
+            console.warn('Иконка прочтения не найдена для элемента сообщения', element);
+        }
+    }
+
+    function createMessageElement(message, isUserSend, messageId) {
+        const li = document.createElement('li');
+        li.className = isUserSend ? 'message user-send' : 'message message-with-ava';
+        if (message.tempId && !message.sentAt) {
+            li.dataset.tempId = message.tempId;
+        } else {
+            li.dataset.messageId = messageId;
+            li.dataset.serverMessage = 'true';
+        }
+        const files = Array.isArray(message.files) && message.files.length > 0 ? message.files : [];
+        li.innerHTML = `
+            ${!isUserSend ? `
+                <div class="message-avatar">
+                    <div class="circleSmallAvatar">
+                        ${message.userAvatar ? `
+                            <img src="${message.userAvatar}" alt="Avatar"/>
+                        ` : `
+                            <img src="/static/icons/user.svg" alt="Default Avatar"/>
+                        `}
+                    </div>
+                </div>
+            ` : ''}
+            <div class="${isUserSend ? 'message-without-ava' : 'message-with-ava-files'}">
+                <div class="user-name">${message.senderUsername || 'Unknown'}</div>
+                <span>${message.content || ''}</span>
+                <div class="file-list" ${files.length > 0 ? '' : 'style="display: none;"'}>
+                    ${files.map(file => `
+                        <div>
+                            ${file.isUploading ? `
+                                <span class="file-chip uploading">${file.fileName || 'Файл'} (Загрузка...)</span>
+                            ` : `
+                                ${file.contentType && file.contentType.startsWith('image/') ? `
+                                    <img src="/file/${file.id}" alt="${file.fileName || 'Изображение'}" class="file-preview-img"/>
+                                ` : file.contentType && file.contentType.startsWith('video/') ? `
+                                    <video controls class="file-preview-video">
+                                        <source src="/file/${file.id}" type="${file.contentType}"/>
+                                        Ваш браузер не поддерживает видео.
+                                    </video>
+                                    <a href="/file/${file.id}" class="file-chip">${file.fileName || 'Видео'}</a>
+                                ` : file.contentType && file.contentType.startsWith('audio/') ? `
+                                    <audio controls class="file-preview-audio">
+                                        <source src="/file/${file.id}" type="${file.contentType}"/>
+                                        Ваш браузер не поддерживает аудио.
+                                    </audio>
+                                    <a href="/file/${file.id}" class="file-chip">${file.fileName || 'Аудио'}</a>
+                                ` : `
+                                    <a href="/file/${file.id}" class="file-chip">${file.fileName || 'Файл'}</a>
+                                `}
+                            `}
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="date-last-mess mess-date">
+                    ${message.read ? `
+                        <img src="/static/icons/read.svg"/>
+                    ` : `
+                        <img src="/static/icons/unread.svg"/>
+                    `}
+                    <p>${message.date || new Date().toLocaleString('ru-RU', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+                </div>
+            </div>
+        `;
+        return li;
+    }
+
+    function removeTempMessage(tempId) {
+        const messageElement = document.querySelector(`li[data-temp-id="${tempId}"]`);
+        if (messageElement) {
+            messageElement.remove();
+        }
+    }
 
     function addFiles(input) {
-        const newFiles = Array.from(input.files);
+        const newFiles = Array.from(input.files).filter(file => file.size <= 10 * 1024 * 1024);
+        if (newFiles.length !== input.files.length) {
+            alert('Некоторые файлы превышают лимит в 10 МБ');
+        }
         accumulatedFiles = accumulatedFiles.concat(newFiles);
         updateFilePreview();
         input.value = '';
@@ -153,25 +644,170 @@
 
     function updateFilePreview() {
         const filePreview = document.getElementById('filePreview');
-        filePreview.innerHTML = '';
-        accumulatedFiles.forEach(file => {
-            const fileName = file.name;
-            const fileDiv = document.createElement('div');
-            fileDiv.className = 'file-preview-item';
-            fileDiv.innerHTML = `
-                <span class="file-name">${fileName}</span>
-                <span class="file-remove" onclick="removeFile('${fileName}')">✕</span>
-            `;
-            filePreview.appendChild(fileDiv);
-        });
-        const attachIcon = document.querySelector('.attach-icon');
-        attachIcon.style.opacity = accumulatedFiles.length > 0 ? '1' : '0.5';
+        if (filePreview) {
+            filePreview.innerHTML = '';
+            accumulatedFiles.forEach(file => {
+                const fileName = file.name;
+                const fileDiv = document.createElement('div');
+                fileDiv.className = 'file-preview-item';
+                fileDiv.innerHTML = `
+                    <span class="file-name">${fileName}</span>
+                    <span class="file-remove" onclick="removeFile('${fileName}')">✕</span>
+                `;
+                filePreview.appendChild(fileDiv);
+            });
+            const attachIcon = document.querySelector('.attach-icon');
+            if (attachIcon) {
+                attachIcon.style.opacity = accumulatedFiles.length > 0 ? '1' : '0.5';
+            }
+        }
     }
 
     function removeFile(fileName) {
         accumulatedFiles = accumulatedFiles.filter(file => file.name !== fileName);
         updateFilePreview();
     }
+
+    function copyEmail(email) {
+        navigator.clipboard.writeText(email).then(() => {
+            const emailElement = document.querySelector(`.email-copy[data-email='${email}'] .email-copy-text`);
+            if (emailElement) {
+                const originalEmail = emailElement.getAttribute('data-original-email') || email;
+                emailElement.setAttribute('data-original-email', originalEmail);
+                emailElement.textContent = 'Скопировано!';
+                emailElement.classList.add('email-copy-copied');
+                setTimeout(() => {
+                    emailElement.textContent = originalEmail;
+                    emailElement.classList.remove('email-copy-copied');
+                }, 2000);
+            }
+        }).catch(err => {
+            console.error('Ошибка копирования:', err);
+        });
+    }
+
+    function loadMoreMessages() {
+        if (!chatId) {
+            console.log('Нет chatId, пропускаем загрузку сообщений');
+            return;
+        }
+        isLoading = true;
+        fetch(`/chat/${chatId}/messages/load?page=${nextPageToLoad}&size=10`, {
+            headers: {
+                [csrfHeader]: csrfToken
+            }
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Ошибка загрузки сообщений: ' + response.statusText);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.content.length > 0) {
+                    prependMessages(data.content);
+                    nextPageToLoad++;
+                } else {
+                    hasMoreMessages = false;
+                }
+                isLoading = false;
+            })
+            .catch(error => {
+                console.error('Ошибка загрузки сообщений:', error);
+                alert('Не удалось загрузить сообщения: ' + error.message);
+                isLoading = false;
+            });
+    }
+
+    function prependMessages(messages) {
+        const messagesList = document.getElementById('messages');
+        const previousHeight = messagesList.scrollHeight;
+        const previousScrollTop = messagesList.scrollTop;
+        messages.forEach(message => {
+            const isUserSend = message.userSend;
+            const messageId = message.id || message.messageId || (message.date ? `final-${message.date}` : `server-${Date.now()}`);
+            if (document.querySelector(`li[data-message-id="${messageId}"]`)) {
+                console.log('Сообщение уже существует, пропускаем: ', messageId);
+                return;
+            }
+            const adaptedMessage = {
+                messageId: message.id || message.messageId,
+                userSend: isUserSend,
+                userAvatar: message.userAvatar,
+                senderUsername: message.senderUsername,
+                content: message.content,
+                files: Array.isArray(message.files) ? message.files.map(file => ({
+                    id: file.id,
+                    fileName: file.fileName,
+                    contentType: file.contentType
+                })) : [],
+                read: message.read,
+                date: message.date
+            };
+            const li = createMessageElement(adaptedMessage, isUserSend, messageId);
+            li.dataset.serverMessage = 'true';
+            messagesList.insertBefore(li, messagesList.firstChild);
+        });
+        const newHeight = messagesList.scrollHeight;
+        const addedHeight = newHeight - previousHeight;
+        messagesList.scrollTop = previousScrollTop + addedHeight;
+    }
+
+    function scheduleReconnect(type) {
+        if (reconnectAttemptsChat >= maxReconnectAttempts) {
+            console.error(`Max reconnect attempts reached for ${type} WebSocket`);
+            alert('Connection lost. Please refresh the page to reconnect.');
+            return;
+        }
+        const delay = reconnectDelay * Math.pow(2, reconnectAttemptsChat);
+        console.log(`Scheduling reconnect attempt ${reconnectAttemptsChat + 1} for ${type} WebSocket in ${delay}ms`);
+        setTimeout(() => {
+            reconnectAttemptsChat++;
+            if (type === 'chat') {
+                connectChatWebSocket();
+            }
+        }, delay);
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        bindFormListener();
+        bindChatItemListeners();
+        const messagesList = document.getElementById('messages');
+        if (messagesList) {
+            messagesList.scrollTop = messagesList.scrollHeight;
+            messagesList.addEventListener('scroll', function() {
+                if (messagesList.scrollTop < 100 && !isLoading && hasMoreMessages) {
+                    loadMoreMessages();
+                }
+            });
+        }
+        if (typeof fetchOnlineUsers === 'function') {
+            fetchOnlineUsers();
+        } else {
+            console.warn('fetchOnlineUsers не определён');
+        }
+        // Проверяем, не подключён ли уже notification WebSocket
+        if (typeof connectNotificationWebSocket === 'function' && (!window.notificationSocket || window.notificationSocket.readyState !== WebSocket.OPEN)) {
+            connectNotificationWebSocket();
+        } else {
+            console.log('Notification WebSocket уже подключён или connectNotificationWebSocket не определён');
+        }
+        if (chatId) connectChatWebSocket();
+        setTimeout(() => {
+            initialMessagesLoaded = false;
+        }, 1000);
+    });
+
+    window.addEventListener('beforeunload', () => {
+        if (chatSocket) {
+            chatSocket.close();
+            chatSocket = null;
+        }
+        if (chatStompClient) {
+            chatStompClient.disconnect();
+            chatStompClient = null;
+        }
+    });
 </script>
 </body>
 </html>

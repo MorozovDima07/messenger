@@ -6,8 +6,7 @@ import lombok.Data;
 
 @Entity
 @Table(name = "chat_members", indexes = {
-        @Index(name = "chat_members_chat_id_idx", columnList = "chat_id"),
-        @Index(name = "idx_user_id", columnList = "user_id")
+        @Index(name = "idx_chat_user", columnList = "chat_id,user_id", unique = true)
 })
 @Data
 public class ChatMember {

@@ -4,7 +4,9 @@ import jakarta.persistence.*;
 import lombok.Data;
 
 @Entity
-@Table(name = "user_settings")
+@Table(name = "user_settings", indexes = {
+        @Index(name = "idx_user_id", columnList = "user_id", unique = true)
+})
 @Data
 public class UserSettings {
     @Id

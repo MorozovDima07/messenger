@@ -5,7 +5,11 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 @Entity
-@Table(name = "blocked_users")
+@Table(name = "blocked_users", indexes = {
+        @Index(name = "idx_blocked_user_user_id", columnList = "user_id"),
+        @Index(name = "idx_blocked_user_blocked_user_id", columnList = "blocked_user_id"),
+        @Index(name = "idx_blocked_user_unique", columnList = "user_id,blocked_user_id", unique = true)
+})
 @Data
 public class BlockedUser {
     @Id

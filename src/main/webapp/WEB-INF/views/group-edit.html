@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Edit Group - Messenger</title>
     <link th:href="@{/static/site.css}" rel="stylesheet"/>
+    <meta name="user-email" th:content="${userEmail}"/>
+    <th:block th:replace="~{fragments/header :: head}"></th:block>
 </head>
 <body>
 <header>
@@ -12,24 +14,56 @@
     <th:block th:replace="~{fragments/header :: right-nav('Редактировать группу', '/group-set?id=' + ${chat.id})}"></th:block>
 </header>
 <div class="container container-chats">
-    <th:block th:replace="~{fragments/chat-list :: chat-list(${chats})}"></th:block>
-    <div class="chat-set">
+    <th:block th:replace="~{fragments/chat-list :: chat-list(${chatsPage.content})}"></th:block>
+    <div class="edit-group">
         <div class="edit-group-container">
             <p class="h1-reg">Редактировать группу</p>
-            <form th:action="@{/group/{id}/edit(id=${chat.id})}" method="post" class="ul-reg">
+            <div th:if="${error != null}" class="error" th:text="${error}"></div>
+            <form th:action="@{/group/{id}/edit(id=${chat.id})}" method="post" enctype="multipart/form-data" class="ul-reg">
                 <ul>
                     <li class="list-group-item item-reg">
                         Название группы
                         <input type="text" name="name" th:value="${chat.name}" class="input-reg" placeholder="Введите новое название" required/>
                     </li>
+                    <li class="list-group-item item-reg">
+                        <div class="ava ava-profile">
+                            <div class="circleHugeAvatar">
+                                <img th:if="${chat.avatarPath != null}" th:src="@{${chat.avatarPath}}" alt="Group Avatar"/>
+                                <img th:unless="${chat.avatarPath != null}" th:src="@{/static/icons/group.svg}" alt="Default Group Avatar"/>
+                            </div>
+                        </div>
+                        <label class="chat-list-item chat-list-item-sendfile choose-avatar">
+                            <input type="file" name="avatar" accept="image/*" hidden/>
+                            <span>Выбрать аватар</span>
+                        </label>
+                    </li>
                 </ul>
                 <div class="btn-group">
-                    <a th:href="@{/group-set?id=${chat.id}}" class="btn btn-reg">Отмена</a>
+                    <a th:href="@{/group-set(id=${chat.id})}" class="btn btn-reg">Отмена</a>
                     <button type="submit" class="btn btn-reg" style="margin-left: 80px;">Сохранить</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const avatarInput = document.querySelector('input[name="avatar"]');
+        const avatarImg = document.querySelector('.circleHugeAvatar img');
+
+        avatarInput.addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    avatarImg.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            } else {
+                avatarImg.src = '/static/icons/group.svg';
+            }
+        });
+    });
+</script>
 </body>
 </html>

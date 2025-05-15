@@ -14,4 +14,6 @@ public class ChatDTO {
     private String avatar;
     private int unreadCount;
     private boolean active;
+    private String recipientEmail;
+    private boolean isPersonal;
 }

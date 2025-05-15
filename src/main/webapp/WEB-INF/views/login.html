@@ -9,17 +9,22 @@
 <body>
 <div class="container container-reg">
     <p class="h1-reg">Войти в аккаунт</p>
-    <div th:if="${param.error}" class="error">Неверный email или пароль</div>
-    <div th:if="${param.logout}" class="info">Вы вышли из аккаунта</div>
+    <div th:if="${error}" th:text="${error}" class="error"></div>
+    <div th:if="${message}" th:text="${message}" class="info"></div>
     <form th:action="@{/login}" method="post" class="ul-reg">
         <ul>
             <li class="list-group-item item-reg">
-                Email<input type="email" name="username" class="input-reg" placeholder="Введите Ваш Email" required/>
+                Email<input type="email" name="username" class="input-reg" placeholder="Введите Ваш Email"
+                            required maxlength="255" pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$"
+                            autocomplete="email" title="Введите email, например, user@example.com"/>
             </li>
             <li class="list-group-item item-reg">
-                Пароль<input type="password" name="password" class="input-reg" placeholder="Введите Ваш Пароль" required/>
+                Пароль<input type="password" name="password" class="input-reg" placeholder="Введите Ваш Пароль"
+                             required minlength="8" maxlength="50" autocomplete="current-password"
+                             title="Пароль: минимум 8 символов"/>
             </li>
         </ul>
+        <input type="hidden" name="_csrf" th:value="${_csrf.token}"/>
         <div class="btn-group">
             <a th:href="@{/register}" class="btn btn-reg">Зарегистрироваться</a>
             <button type="submit" class="btn btn-reg" style="margin-left: 80px;">Войти</button>

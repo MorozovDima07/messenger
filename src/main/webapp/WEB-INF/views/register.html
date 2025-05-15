@@ -9,16 +9,25 @@
 <body>
 <div class="container container-reg">
     <p class="h1-reg">Регистрация</p>
-    <form th:action="@{/register}" method="post" class="ul-reg">
+    <span th:text="${error}"></span>
+    <form th:action="@{/register}" th:object="${registerRequest}" method="post" class="ul-reg">
         <ul>
             <li class="list-group-item item-reg">
-                Email<input type="email" name="email" class="input-reg" placeholder="Введите Ваш Email" required/>
+                Email<input type="email" name="email" class="input-reg" placeholder="Введите Ваш Email"
+                    maxlength="255" pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$"
+                    autocomplete="email" title="Введите email, например, user@example.com" required/>
             </li>
             <li class="list-group-item item-reg">
-                Пароль<input type="password" name="password" class="input-reg" placeholder="Введите Ваш Пароль" required/>
+                Пароль
+                <!--pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,}"-->
+                <input type="password" name="password" class="input-reg" placeholder="Введите Ваш Пароль"
+                    minlength="8" maxlength="50" autocomplete="new-password"
+                    title="Пароль: минимум 8 символов, включая буквы разного регистра и цифры" required/>
             </li>
             <li class="list-group-item item-reg">
-                Имя<input type="text" name="username" class="input-reg" placeholder="Введите Ваше Имя" required/>
+                Имя<input type="text" name="username" class="input-reg" placeholder="Введите Ваше Имя"
+                    minlength="2" maxlength="50" pattern="[A-Za-zА-Яа-яЁё\s-]{2,}"
+                    title="Имя: только буквы, пробелы или дефисы, минимум 2 символа" required/>
             </li>
         </ul>
         <div class="btn-group">

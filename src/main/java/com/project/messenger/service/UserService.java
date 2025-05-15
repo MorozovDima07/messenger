@@ -1,13 +1,15 @@
 package com.project.messenger.service;
 
-import com.project.messenger.model.BlockedUser;
-import com.project.messenger.model.NotificationLevel;
-import com.project.messenger.model.User;
-import com.project.messenger.model.UserSettings;
+import com.project.messenger.model.*;
+import com.project.messenger.model.dto.BlockedUserDTO;
+import com.project.messenger.model.dto.RegisterRequest;
 import com.project.messenger.repository.BlockedUserRepository;
+import com.project.messenger.repository.ChatRepository;
 import com.project.messenger.repository.UserRepository;
 import com.project.messenger.repository.UserSettingsRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -35,6 +37,9 @@ public class UserService implements UserServiceInterface {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private ChatRepository chatRepository;
+
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
@@ -45,21 +50,15 @@ public class UserService implements UserServiceInterface {
     }
 
     @Transactional
-    public User registerUser(String email, String password, String username) {
-        if (userRepository.existsByEmail(email)) {
+    public User registerUser(RegisterRequest request) {
+        if (userRepository.existsByEmail(request.getEmail())) {
             throw new IllegalArgumentException("Email уже зарегистрирован");
-        }
-        if (password.length() < 8) {
-            throw new IllegalArgumentException("Пароль должен содержать минимум 8 символов");
-        }
-        if (username.length() < 2 || username.length() > 50) {
-            throw new IllegalArgumentException("Имя пользователя должно быть от 2 до 50 символов");
         }
 
         User user = new User();
-        user.setEmail(email);
-        user.setPassword(passwordEncoder.encode(password));
-        user.setUsername(username);
+        user.setEmail(request.getEmail());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setUsername(request.getUsername());
         user.setLastActive(LocalDateTime.now());
         user.setEmailVisible(true);
         user = userRepository.save(user);
@@ -152,11 +151,17 @@ public class UserService implements UserServiceInterface {
         blockedUserRepository.deleteByUserIdAndBlockedUserId(userId, blockedUserId);
     }
 
-
-    public List<BlockedUser> getBlockedUsers(Long userId) {
-        return blockedUserRepository.findByUserIdWithBlockedUser(userId);
+    public Page<BlockedUserDTO> getBlockedUsers(Long userId, Pageable pageable) {
+        return blockedUserRepository.findByUserId(userId, pageable).map(blockedUser -> {
+            BlockedUserDTO dto = new BlockedUserDTO();
+            dto.setId(blockedUser.getBlockedUser().getId());
+            dto.setUsername(blockedUser.getBlockedUser().getUsername());
+            dto.setEmail(blockedUser.getBlockedUser().getEmail());
+            dto.setEmailVisible(blockedUser.getBlockedUser().isEmailVisible());
+            dto.setAvatarPath(blockedUser.getBlockedUser().getAvatarPath());
+            return dto;
+        });
     }
-
 
     public boolean isBlocked(Long userId, Long targetUserId) {
         return blockedUserRepository.existsByUserIdAndBlockedUserId(userId, targetUserId);
@@ -183,5 +188,28 @@ public class UserService implements UserServiceInterface {
         userRepository.save(user);
 
         return true;
+    }
+
+    public List<String> searchUsersByEmail(String query) {
+        return userRepository.findByEmailContainingIgnoreCase(query).stream()
+                .map(User::getEmail)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<String> searchUsersWithDirectChats(String currentUserEmail, String query) {
+        User currentUser = findByEmail(currentUserEmail);
+
+        List<Chat> directChats = chatRepository.findByTypeAndMembers_UserId(ChatType.PERSONAL, currentUser.getId());
+
+        List<String> emails = directChats.stream()
+                .flatMap(chat -> chat.getMembers().stream()
+                        .filter(member -> !member.getUser().getEmail().equals(currentUserEmail))
+                        .map(member -> member.getUser().getEmail()))
+                .filter(email -> email.toLowerCase().contains(query.toLowerCase()))
+                .distinct()
+                .collect(Collectors.toList());
+
+        return emails;
     }
 }

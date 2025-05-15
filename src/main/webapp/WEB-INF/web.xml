@@ -17,8 +17,8 @@
         </init-param>
         <load-on-startup>1</load-on-startup>
         <multipart-config>
-            <max-file-size>10485760</max-file-size> <!-- 10MB -->
-            <max-request-size>10485760</max-request-size>
+            <max-file-size>100000000</max-file-size> <!-- 10MB 10485760-->
+            <max-request-size>100000000</max-request-size>
         </multipart-config>
     </servlet>
     <servlet-mapping>

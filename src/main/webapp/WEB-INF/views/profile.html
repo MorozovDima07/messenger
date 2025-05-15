@@ -5,23 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Profile - Messenger</title>
     <link th:href="@{/static/site.css}" rel="stylesheet"/>
+    <meta name="user-email" th:content="${userEmail}"/>
+    <th:block th:replace="~{fragments/header :: head}"></th:block>
 </head>
 <body>
 <header>
     <th:block th:replace="~{fragments/header :: left-nav('settings')}"></th:block>
     <th:block th:replace="~{fragments/header :: right-nav('Профиль', null)}"></th:block>
 </header>
-<div class="container container-reg">
+<div class="container container-profile">
     <p class="h1-reg">Профиль</p>
     <div class="profile-set">
-        <div class="ava">
+        <div class="ava ava-profile">
             <div class="circleHugeAvatar">
                 <img th:if="${user.avatarPath != null}" th:src="@{${user.avatarPath}}" alt="Avatar"/>
                 <img th:unless="${user.avatarPath != null}" th:src="@{/static/icons/user.svg}" alt="Default Avatar"/>
             </div>
         </div>
         <form th:action="@{/profile/upload-avatar}" method="post" enctype="multipart/form-data" class="list-group-item item-reg">
-            <label class="chat-list-item chat-list-item-sendfile">
+            <label class="chat-list-item chat-list-item-sendfile choose-avatar">
                 <input type="file" name="avatar" accept="image/*" hidden/>
                 <span>Выбрать аватар</span>
             </label>
@@ -29,7 +31,7 @@
         </form>
         <form th:action="@{/profile}" method="post" class="ul-reg">
             <ul>
-                <li class="list-group-item item-reg">Email<input type="email" name="email" th:value="${user.email}" class="input-reg" readonly/></li>
+                <li class="list-group-item item-reg">Email<input type="email" name="email" th:value="${user.email}" class="input-reg input-reg-constant" readonly/></li>
                 <li class="list-group-item item-reg">Имя<input type="text" name="username" th:value="${user.username}" class="input-reg"/></li>
             </ul>
             <div class="btn-group">
@@ -38,5 +40,24 @@
         </form>
     </div>
 </div>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const avatarInput = document.querySelector('input[name="avatar"]');
+        const avatarImg = document.querySelector('.circleHugeAvatar img');
+
+        avatarInput.addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    avatarImg.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            } else {
+                avatarImg.src = '/static/icons/user.svg';
+            }
+        });
+    });
+</script>
 </body>
 </html>

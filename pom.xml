@@ -19,7 +19,7 @@
         <thymeleaf.version>3.1.2.RELEASE</thymeleaf.version>
         <jakarta.servlet.version>6.0.0</jakarta.servlet.version>
         <hikari.version>5.1.0</hikari.version>
-        <tomcat.webapps.dir>C:\Java\apache-tomcat-10.1.29\webapps</tomcat.webapps.dir>
+        <tomcat.webapps.dir>C:\Java\apache-tomcat-10.1.33\webapps</tomcat.webapps.dir>
     </properties>
 
     <dependencies>
@@ -53,6 +53,7 @@
             <artifactId>spring-security-messaging</artifactId>
             <version>6.3.5</version>
         </dependency>
+
 
         <dependency>
             <groupId>org.springframework.security</groupId>
@@ -223,10 +224,10 @@
                         </goals>
                         <configuration>
                             <target>
-                                <exec executable="C:\Java\apache-tomcat-10.1.29\bin\shutdown.bat" failonerror="false"/>
+                                <exec executable="C:\Java\apache-tomcat-10.1.33\bin\shutdown.bat" failonerror="false"/>
                                 <copy file="${project.build.directory}/${project.build.finalName}.war"
                                       todir="${tomcat.webapps.dir}"/>
-                                <exec executable="C:\Java\apache-tomcat-10.1.29\bin\startup.bat" failonerror="false"/>
+                                <exec executable="C:\Java\apache-tomcat-10.1.33\bin\startup.bat" failonerror="false"/>
                             </target>
                         </configuration>
                     </execution>

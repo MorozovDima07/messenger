@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const trimmed = value.trim();
         cleanSearch.style.display = trimmed ? 'flex' : 'none';
 
-        fetch('/messenger-1.0-SNAPSHOT/chats/search?chatName=' + encodeURIComponent(trimmed) +
+        fetch('/chats/search?chatName=' + encodeURIComponent(trimmed) +
             '&chatType=' + encodeURIComponent(chatType.value), {
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
         })

@@ -14,7 +14,7 @@
     <th:block th:replace="~{fragments/header :: right-nav('Настройки уведомлений', null)}"></th:block>
 </header>
 <div class="container container-chats">
-    <th:block th:replace="~{fragments/chat-list :: chat-list(${chatsPage.content})}"></th:block>
+    <th:block th:replace="~{fragments/chat-list :: chat-list(${chatsPage.content}, null)}"></th:block>
     <div class="chat">
         <div class="settings-container">
             <p class="h1-reg">Настройки уведомлений</p>

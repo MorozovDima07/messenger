@@ -10,6 +10,7 @@ import org.imgscalr.Scalr;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.*;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -22,6 +23,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 public class ChatService {
@@ -459,8 +461,6 @@ public class ChatService {
             };
         }
 
-        return mapToChatDTOs(chats, userId);
-        List<Chat> chats = chatRepository.findByNameContainingAndUserId(normalizedQuery, userId);
         return mapToChatDTOs(chats, userId, email);
     }
 

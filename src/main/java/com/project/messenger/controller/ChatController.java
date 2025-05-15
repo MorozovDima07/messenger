@@ -71,16 +71,6 @@ public class ChatController extends BaseController {
         return null;
     }
 
-
-    @GetMapping("/chats/search")
-    public String searchChats(@RequestParam("chatName") String chatName, Model model, Authentication auth) {
-        List<ChatDTO> chats = chatService.searchChatsByUserAndChatName(auth.getName(), chatName);
-        model.addAttribute("chats", chats);
-        model.addAttribute("chatName", chatName);
-        model.addAttribute("userEmail", auth.getName());
-        return "chats";
-    }
-
     @ModelAttribute("chatType")
     public ChatType getChatType(Model model) {
         return (ChatType) model.getAttribute("chatType");

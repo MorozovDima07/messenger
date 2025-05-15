@@ -15,7 +15,7 @@
     <th:block th:replace="~{fragments/header :: right-nav(${chat != null ? chat.name : 'Личные чаты'}, ${chat != null ? '/direct-set?id=' + chat.id : null})}"></th:block>
 </header>
 <div class="container container-chats">
-    <th:block th:replace="~{fragments/chat-list :: chat-list(${chatsPage.content}, 'PERSONAL')}"></th:block>
+    <th:block th:replace="~{fragments/chat-list :: chat-list(${chatsPage.content})}"></th:block>
     <div th:if="${chat == null}" class="start-chat">
         <img th:src="@{/static/icons/start-chat.svg}"/>
         <p>Выберите чат и начните общение!</p>

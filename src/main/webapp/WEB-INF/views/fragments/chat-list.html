@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <body>
-<th:block th:fragment="chat-list(chats, chatType)">
+<th:block th:fragment="chat-list(chats)">
     <div class="chat-list">
         <div class="chat-list-search">
             <a th:href="@{/chats/new(page=${chatsPage.number}, size=${chatsPage.size})}">
                 <div class="circleAddChat"><img th:src="@{/static/icons/plus.svg}" alt="New Chat"/></div>
             </a>
             <form th:action="@{/chats/search(page=${chatsPage.number}, size=${chatsPage.size})}" method="get" class="search-form">
-                <input type="hidden" id="chatType" name="chatType" th:value="${chatType}"/>
+                <input type="hidden" id="chatType" name="chatType" th:value="${chatType != null ? chatType : 'ALL'}"/>
                 <input type="text" class="input-chat" id="chatName" name="chatName" th:value="${chatName}" placeholder="Поиск чата..."/>
                 <a class="clean-search" id="cleanSearch">
                     <img th:src="@{/static/icons/leave.svg}" alt="X"/>

@@ -16,7 +16,7 @@
     <th:block th:replace="~{fragments/header :: right-nav('Ваши чаты', null)}"></th:block>
 </header>
 <div class="container container-chats">
-    <th:block th:replace="~{fragments/chat-list :: chat-list(${chatsPage.content}, 'ALL')}"></th:block>
+    <th:block th:replace="~{fragments/chat-list :: chat-list(${chatsPage.content})}"></th:block>
     <div class="start-chat">
         <img th:src="@{/static/icons/start-chat.svg}"/>
         <p>Выберите чат и начните общение!</p>

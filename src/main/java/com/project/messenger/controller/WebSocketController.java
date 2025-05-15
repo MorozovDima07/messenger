@@ -2,6 +2,7 @@ package com.project.messenger.controller;
 
 import com.project.messenger.model.*;
 import com.project.messenger.model.dto.NotificationDTO;
+import com.project.messenger.model.dto.OnlineStatusDTO;
 import com.project.messenger.model.dto.WebSocketMessageDTO;
 import com.project.messenger.service.*;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
@@ -23,7 +24,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-@Controller
 @RestController
 @RequestMapping("/api")
 public class WebSocketController {
@@ -111,7 +111,7 @@ public class WebSocketController {
         String email = principal.getName();
         System.out.println("Пользователь " + email + " присоединился к чату: " + chatId);
         activeChats.computeIfAbsent(email, k -> new HashSet<>()).add(chatId);
-        activeUsers.put(email, System.currentTimeMillis()); // Обновляем время активности
+        activeUsers.put(email, System.currentTimeMillis());
         System.out.println("activeChats после join: " + activeChats + ", activeUsers: " + activeUsers);
     }
 
@@ -272,28 +272,6 @@ public class WebSocketController {
 
         chat.setLastMessageTimestamp(message.getTimestamp());
         chatService.saveChat(chat);
-    }
-
-
-    public static class OnlineStatusDTO {
-        private String email;
-        private boolean isOnline;
-
-        public String getEmail() {
-            return email;
-        }
-
-        public void setEmail(String email) {
-            this.email = email;
-        }
-
-        public boolean isOnline() {
-            return isOnline;
-        }
-
-        public void setOnline(boolean online) {
-            isOnline = online;
-        }
     }
 
     @MessageMapping("/heartbeat")

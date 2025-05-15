@@ -69,12 +69,4 @@ public class JpaConfig {
         transactionManager.setEntityManagerFactory(entityManagerFactory.getObject());
         return transactionManager;
     }
-
-
-    @Bean
-    public static PropertySourcesPlaceholderConfigurer propertySourcesPlaceholderConfigurer() {
-        PropertySourcesPlaceholderConfigurer configurer = new PropertySourcesPlaceholderConfigurer();
-        configurer.setLocation(new ClassPathResource("application.properties"));
-        return configurer;
-    }
 }

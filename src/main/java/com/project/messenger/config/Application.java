@@ -11,7 +11,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 //Hot reboot
 @SpringBootApplication(exclude = {
         ThymeleafAutoConfiguration.class,
-        SqlInitializationAutoConfiguration.class // Уже добавлено ранее
+        SqlInitializationAutoConfiguration.class
 })
 @EnableScheduling
 public class Application extends SpringBootServletInitializer {

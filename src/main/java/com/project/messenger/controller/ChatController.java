@@ -80,11 +80,6 @@ public class ChatController extends BaseController {
         return "chats";
     }
 
-    @ModelAttribute("chatType")
-    public ChatType getChatType(Model model) {
-        return (ChatType) model.getAttribute("chatType");
-    }
-
     @GetMapping("/chats")
     public String chats(
             @RequestParam(name = "page", defaultValue = "0") int page,

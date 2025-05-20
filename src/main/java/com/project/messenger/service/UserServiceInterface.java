@@ -28,7 +28,8 @@ public interface UserServiceInterface extends UserDetailsService {
     boolean isBlocked(Long userId, Long targetUserId);
     UserDetails loadUserByUsername(String email);
     List<User> getAllUsers();
-    boolean changePassword(String username, String currentPassword, String newPassword, String confirmPassword);
+    void changePassword(String username, String newPassword);
+    String getPasswordHashByEmail(String email);
     List<String> searchUsersByEmail(String query);
     List<String> searchUsersWithDirectChats(String currentUserEmail, String query);
 }

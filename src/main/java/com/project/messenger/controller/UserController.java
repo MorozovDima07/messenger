@@ -4,10 +4,12 @@ import com.project.messenger.model.NotificationLevel;
 import com.project.messenger.model.User;
 import com.project.messenger.model.UserSettings;
 import com.project.messenger.model.dto.BlockedUserDTO;
+import com.project.messenger.model.dto.ChangePasswordDTO;
 import com.project.messenger.service.ChatService;
 import com.project.messenger.service.UserService;
 import com.project.messenger.service.UserServiceInterface;
 import com.project.messenger.service.UserSettingsService;
+import jakarta.validation.Valid;
 import org.imgscalr.Scalr;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -15,8 +17,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -36,6 +40,9 @@ public class UserController extends BaseController{
 
     @Autowired
     private UserSettingsService userSettingsService;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @GetMapping("/profile")
     public String profile(
@@ -274,5 +281,37 @@ public class UserController extends BaseController{
             model.addAttribute("chatType", null);
             return "notification-settings";
         }
+    }
+
+    @GetMapping("/change-password")
+    public String showChangePasswordForm(Model model) {
+        model.addAttribute("passwordDTO", new ChangePasswordDTO());
+        return "change-password";
+    }
+
+    @PostMapping("/change-password")
+    public String changePassword(@Valid @ModelAttribute("passwordDTO") ChangePasswordDTO passwordDTO,
+                                 BindingResult bindingResult,
+                                 Authentication auth,
+                                 Model model) {
+
+        if (!passwordDTO.getNewPassword().equals(passwordDTO.getConfirmPassword())) {
+            bindingResult.rejectValue("confirmPassword", "error.confirmPassword", "Пароли не совпадают");
+        }
+
+        String storedCurrentPassword = userService.getPasswordHashByEmail(auth.getName());
+        if (!passwordEncoder.matches(passwordDTO.getCurrentPassword(), storedCurrentPassword)) {
+            bindingResult.rejectValue("currentPassword", "error.currentPassword", "Старый пароль введён неверно");
+        }
+
+        if (bindingResult.hasErrors()) {
+            return "change-password";
+        }
+
+        userService.changePassword(auth.getName(), passwordDTO.getNewPassword());
+
+        model.addAttribute("successMessage", "Пароль успешно изменён");
+
+        return "change-password";
     }
 }

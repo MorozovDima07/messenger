@@ -171,23 +171,19 @@ public class UserService implements UserServiceInterface {
         return userRepository.findAll();
     }
 
+    public String getPasswordHashByEmail(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("Пользователь с email " + email + " не найден"));
+        return user.getPassword();
+    }
+
     @Override
-    public boolean changePassword(String email, String currentPassword, String newPassword, String confirmPassword) {
+    public void changePassword(String email, String newPassword) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("Пользователь с таким email не найден: " + email));
 
-        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
-            return false;
-        }
-
-        if (!newPassword.equals(confirmPassword)) {
-            return false;
-        }
-
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
-
-        return true;
     }
 
     public List<String> searchUsersByEmail(String query) {

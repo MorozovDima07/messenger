@@ -1,12 +1,12 @@
 package com.project.messenger.controller;
 
+import com.project.messenger.exception.InvalidChatOperationException;
 import com.project.messenger.model.*;
 import com.project.messenger.model.dto.ChatDTO;
 import com.project.messenger.model.dto.DirectChatDTO;
 import com.project.messenger.model.dto.GroupChatDTO;
 import com.project.messenger.model.dto.MessageDTO;
 import com.project.messenger.service.ChatService;
-import com.project.messenger.service.MessageService;
 import com.project.messenger.service.UserServiceInterface;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -28,43 +28,22 @@ public class ChatController extends BaseController {
 
     private static final String DIRECT_PATH = "/direct";
     private static final String GROUP_PATH = "/group";
-    private static final String CHATS_PATH_PREFIX = "/chats/";
     private static final String CHATS_LOAD_PATH = "/chats/load";
 
     @Autowired
     private ChatService chatService;
 
     @Autowired
-    private MessageService messageService;
-
-    @Autowired
     private UserServiceInterface userService;
 
     @ModelAttribute("chatType")
-    public ChatType getChatType(
-            HttpServletRequest request,
-            Authentication auth,
-            @RequestParam(name = "chatType", required = false) ChatType chatTypeParam,
-            @PathVariable(value = "id", required = false) Long chatId) {
+    public ChatType getChatType(HttpServletRequest request, @RequestParam(name = "chatType", required = false) ChatType chatTypeParam) {
         String uri = request.getRequestURI();
-
         if (uri.endsWith(DIRECT_PATH)) {
             return ChatType.PERSONAL;
-        }
-        if (uri.endsWith(GROUP_PATH)) {
+        } else if (uri.endsWith(GROUP_PATH)) {
             return ChatType.GROUP;
-        }
-        if (uri.startsWith(CHATS_PATH_PREFIX) && !uri.equals(CHATS_LOAD_PATH) && chatId != null) {
-            try {
-                if (auth != null && auth.getName() != null) {
-                    Chat chat = chatService.getChat(chatId, auth.getName());
-                    return chat.getType();
-                }
-            } catch (IllegalArgumentException e) {
-                return null;
-            }
-        }
-        if (uri.equals(CHATS_LOAD_PATH)) {
+        } else if (uri.equals(CHATS_LOAD_PATH)) {
             return chatTypeParam;
         }
         return null;
@@ -85,35 +64,10 @@ public class ChatController extends BaseController {
             @RequestParam(name = "id", required = false) Long id,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "10") int size,
-            @RequestParam(name = "chatType", defaultValue = "PERSONAL") ChatType chatType,
             Model model,
             Authentication auth) {
-        model.addAttribute("chatType", ChatType.PERSONAL);
-        User currentUser = userService.findByEmail(auth.getName());
-        model.addAttribute("userEmail", auth.getName());
-        if (id != null) {
-            Chat chat = chatService.getChat(id, auth.getName());
-            model.addAttribute("chat", chat);
-            Page<MessageDTO> messagePage = chatService.getMessages(id, currentUser.getId(), 0, size);
-            List<MessageDTO> reversedMessages = new ArrayList<>(messagePage.getContent());
-            Collections.reverse(reversedMessages);
-            model.addAttribute("messages", reversedMessages);
-            model.addAttribute("currentPage", messagePage.getNumber());
-            model.addAttribute("totalPages", messagePage.getTotalPages());
-        }
+        viewChat(id, page, size, model, auth);
         return "direct";
-    }
-
-    @GetMapping("/chat/{chatId}/messages/load")
-    @ResponseBody
-    public Page<MessageDTO> loadMoreMessages(
-            @PathVariable("chatId") Long chatId,
-            @RequestParam("page") int page,
-            @RequestParam("size") int size,
-            Authentication auth) {
-        User currentUser = userService.findByEmail(auth.getName());
-        Page<MessageDTO> messages = chatService.getMessages(chatId, currentUser.getId(), page, size);
-        return messages;
     }
 
     @GetMapping("/group")
@@ -123,21 +77,21 @@ public class ChatController extends BaseController {
             @RequestParam(name = "size", defaultValue = "10") int size,
             Model model,
             Authentication auth) {
-        model.addAttribute("chatType", ChatType.GROUP);
+        viewChat(id, page, size, model, auth);
+        return "group";
+    }
+
+    private void viewChat(Long chatId, int page, int size, Model model, Authentication auth) {
         User currentUser = userService.findByEmail(auth.getName());
         model.addAttribute("userEmail", auth.getName());
-        if (id != null) {
-            Chat chat = chatService.getChat(id, auth.getName());
+        if (chatId != null) {
+            Chat chat = chatService.getChat(chatId, auth.getName());
             model.addAttribute("chat", chat);
-            Page<MessageDTO> messagePage = chatService.getMessages(id, currentUser.getId(), 0, size);
+            Page<MessageDTO> messagePage = chatService.getMessages(chatId, currentUser.getId(), 0, size);
             List<MessageDTO> reversedMessages = new ArrayList<>(messagePage.getContent());
             Collections.reverse(reversedMessages);
             model.addAttribute("messages", reversedMessages);
-            model.addAttribute("currentPage", messagePage.getNumber());
-            model.addAttribute("totalPages", messagePage.getTotalPages());
         }
-        model.addAttribute("currentUserId", currentUser.getId());
-        return "group";
     }
 
     @GetMapping("/chats/new")
@@ -148,125 +102,54 @@ public class ChatController extends BaseController {
         return "new-chat";
     }
 
-    @PostMapping("/chats/new/direct")
+    @PostMapping("/new/direct")
     public String createDirectChat(@Valid @ModelAttribute DirectChatDTO dto,
                                    BindingResult result,
                                    Authentication auth,
                                    Model model) {
         if (result.hasErrors()) {
-            model.addAttribute("error", result.getFieldError("email").getDefaultMessage());
+            model.addAttribute("error", result.getFieldError("email") != null
+                    ? result.getFieldError("email").getDefaultMessage()
+                    : "Ошибка валидации");
             model.addAttribute("userEmail", auth.getName());
-            return "new-chat";
+            return prepareNewChatModel(model);
         }
 
-        User currentUser = userService.findByEmail(auth.getName());
         try {
-            User user2 = userService.findByEmail(dto.getEmail());
-            if (user2.getId().equals(currentUser.getId())) {
-                model.addAttribute("error", "Нельзя создать чат с самим собой!");
-            } else if (userService.isBlocked(currentUser.getId(), user2.getId())) {
-                model.addAttribute("error", "Этот пользователь заблокирован!");
-            } else {
-                Chat chat = chatService.createDirectChat(currentUser.getId(), user2.getId());
-                return "redirect:/chats/" + chat.getId();
-            }
-        } catch (Exception e) {
-            model.addAttribute("error", "Пользователь с email " + dto.getEmail() + " не найден!");
+            Chat chat = chatService.createDirectChat(auth.getName(), dto.getEmail());
+            return "redirect:/chats/" + chat.getId();
+        } catch (InvalidChatOperationException e) {
+            model.addAttribute("error", e.getMessage());
+            return prepareNewChatModel(model);
         }
-        model.addAttribute("DirectChatDTO", new DirectChatDTO());
-        model.addAttribute("GroupChatDTO", new GroupChatDTO());
-        model.addAttribute("userEmail", auth.getName());
-        return "new-chat";
     }
 
-    @PostMapping("/chats/new/group")
+    @PostMapping("/new/group")
     public String createGroupChat(@Valid @ModelAttribute GroupChatDTO dto,
                                   BindingResult result,
                                   Authentication auth,
                                   Model model) {
         if (result.hasErrors()) {
-            model.addAttribute("DirectChatDTO", new DirectChatDTO());
-            model.addAttribute("GroupChatDTO", new GroupChatDTO());
             model.addAttribute("error", "Проверьте название группы и email участников");
-            model.addAttribute("userEmail", auth.getName());
-            return "new-chat";
-        }
-
-        User currentUser = userService.findByEmail(auth.getName());
-        List<Long> memberIds = new ArrayList<>();
-        List<String> errors = new ArrayList<>();
-
-        for (String email : dto.getEmails()) {
-            if (email == null || email.trim().isEmpty()) {
-                continue;
-            }
-            try {
-                User user = userService.findByEmail(email.trim());
-                if (!user.getId().equals(currentUser.getId()) && !memberIds.contains(user.getId())) {
-                    if (userService.isBlocked(currentUser.getId(), user.getId())) {
-                        errors.add("Пользователь " + email + " заблокирован");
-                    } else {
-                        memberIds.add(user.getId());
-                    }
-                }
-            } catch (IllegalArgumentException e) {
-                errors.add("Пользователь с email " + email + " не найден");
-            }
-        }
-
-        if (!errors.isEmpty()) {
-            model.addAttribute("DirectChatDTO", new DirectChatDTO());
-            model.addAttribute("GroupChatDTO", new GroupChatDTO());
-            model.addAttribute("userEmail", auth.getName());
-            model.addAttribute("error", String.join("; ", errors));
-            return "new-chat";
-        }
-
-        if (memberIds.isEmpty()) {
-            model.addAttribute("DirectChatDTO", new DirectChatDTO());
-            model.addAttribute("GroupChatDTO", new GroupChatDTO());
-            model.addAttribute("userEmail", auth.getName());
-            model.addAttribute("error", "Групповой чат должен содержать хотя бы одного участника помимо вас!");
-            return "new-chat";
+            return prepareNewChatModel(model);
         }
 
         try {
-            Chat chat = chatService.createGroupChat(dto.getName(), currentUser.getId(), memberIds, null);
+            Chat chat = chatService.createGroupChat(dto.getName(), auth.getName(), dto.getEmails(), null);
             return "redirect:/chats/" + chat.getId();
-        } catch (IllegalArgumentException e) {
+        } catch (InvalidChatOperationException e) {
             model.addAttribute("error", e.getMessage());
-            model.addAttribute("DirectChatDTO", new DirectChatDTO());
-            model.addAttribute("GroupChatDTO", new GroupChatDTO());
-            model.addAttribute("userEmail", auth.getName());
-            return "new-chat";
+            return prepareNewChatModel(model);
         }
     }
 
-
-    @GetMapping("/chats/{id}")
-    public String viewChat(@PathVariable("id") Long id,
-                           @RequestParam(name = "page", defaultValue = "0") int page,
-                           @RequestParam(name = "size", defaultValue = "10") int size,
-                           Model model,
-                           Authentication auth) {
-        User currentUser = userService.findByEmail(auth.getName());
-        Chat chat = chatService.getChat(id, auth.getName());
-        model.addAttribute("chat", chat);
-        Page<MessageDTO> messagePage = chatService.getMessages(id, currentUser.getId(), 0, size);
-        List<MessageDTO> reversedMessages = new ArrayList<>(messagePage.getContent());
-        Collections.reverse(reversedMessages);
-        model.addAttribute("messages", reversedMessages);
-        model.addAttribute("currentPage", messagePage.getNumber());
-        model.addAttribute("totalPages", messagePage.getTotalPages());
-        model.addAttribute("chatType", chat.getType());
-        messageService.markMessagesAsRead(id, auth.getName());
-        model.addAttribute("userEmail", auth.getName());
-
-        if (chat.getType() == ChatType.PERSONAL) {
-            return "direct";
-        } else {
-            return "group";
-        }
+    private String prepareNewChatModel(Model model) {
+        model.addAttribute("DirectChatDTO", new DirectChatDTO());
+        model.addAttribute("GroupChatDTO", new GroupChatDTO());
+        model.addAttribute("userEmail", model.containsAttribute("userEmail")
+                ? model.getAttribute("userEmail")
+                : "");
+        return "new-chat";
     }
 
     @GetMapping("/chats/load")
@@ -277,9 +160,7 @@ public class ChatController extends BaseController {
             @RequestParam(name = "chatType", required = false) ChatType chatType,
             Authentication auth) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "lastMessageTimestamp"));
-        Page<ChatDTO> chatsPage = chatService.getChatsPage(auth.getName(), chatType, pageable);
-        System.out.println("Loaded " + chatsPage.getNumberOfElements() + " chats for page " + page);
-        return chatsPage;
+        return chatService.getChatsPage(auth.getName(), chatType, pageable);
     }
 
     @GetMapping("/chats/search")

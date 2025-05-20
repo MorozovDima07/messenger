@@ -23,8 +23,6 @@ public interface ChatRepository extends JpaRepository<Chat, Long> {
     @Query("SELECT c FROM Chat c JOIN c.members m1 JOIN c.members m2 " +
             "WHERE c.type = 'PERSONAL' AND m1.user.id = :userId1 AND m2.user.id = :userId2")
     Optional<Chat> findPersonalChatBetweenUsers(@Param("userId1") Long userId1, @Param("userId2") Long userId2);
-    @Query("SELECT c FROM Chat c JOIN FETCH c.members WHERE c.id = :id")
-    Optional<Chat> findChatWithMembersById(@Param("id") Long id);
     @Query("SELECT c FROM Chat c JOIN FETCH c.members WHERE c.inviteLink = :inviteLink")
     Optional<Chat> findByInviteLink(@Param("inviteLink") String inviteLink);
     @Query("SELECT DISTINCT c FROM Chat c " +

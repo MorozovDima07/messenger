@@ -5,9 +5,11 @@ import com.project.messenger.model.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -23,4 +25,10 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     List<Message> findUnreadByGroupChatIdAndUser(@Param("chatId") Long chatId, @Param("user") User user);
     @Query("SELECT DISTINCT m FROM Message m LEFT JOIN FETCH m.files WHERE m.chat.id = :chatId")
     Page<Message> findByChatIdOrderByTimestampDesc(@Param("chatId") Long chatId, Pageable pageable);
+    @Modifying
+    @Transactional
+    @Query(value = "INSERT INTO message_read_by (message_id, user_id) " +
+            "SELECT m.id, :userId FROM message m WHERE m.chat_id = :chatId " +
+            "ON CONFLICT DO NOTHING", nativeQuery = true)
+    void markMessagesAsReadByUser(@Param("chatId") Long chatId, @Param("userId") Long userId);
 }

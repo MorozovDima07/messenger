@@ -168,7 +168,7 @@
             <version>2.15.2</version>
         </dependency>
 
-        <!--Hot reboot-->
+        <!--Hot reboot
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
@@ -187,7 +187,7 @@
             <version>3.3.4</version>
             <scope>runtime</scope>
             <optional>true</optional>
-        </dependency>
+        </dependency>-->
     </dependencies>
 
     <build>
@@ -219,8 +219,10 @@
                         <configuration>
                             <target>
                                 <exec executable="C:\Java\apache-tomcat-10.1.29\bin\shutdown.bat" failonerror="false"/>
+                                <delete dir="${tomcat.webapps.dir}/ROOT" failonerror="false"/>
+                                <delete file="${tomcat.webapps.dir}/ROOT.war" failonerror="false"/>
                                 <copy file="${project.build.directory}/${project.build.finalName}.war"
-                                      todir="${tomcat.webapps.dir}"/>
+                                      tofile="${tomcat.webapps.dir}/ROOT.war"/>
                                 <exec executable="C:\Java\apache-tomcat-10.1.29\bin\startup.bat" failonerror="false"/>
                             </target>
                         </configuration>

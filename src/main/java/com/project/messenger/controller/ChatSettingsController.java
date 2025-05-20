@@ -152,7 +152,7 @@ public class ChatSettingsController extends BaseController{
             String contentType = avatar.getContentType();
             if (contentType != null && contentType.startsWith("image/")) {
                 if (avatar.getSize() <= 5 * 1024 * 1024) { // Максимум 5 МБ
-                    chatService.updateChatAvatar(id, avatar);
+                    chatService.updateChatAvatar(id, avatar, auth.getName());
                 } else {
                     model.addAttribute("chat", chat);
                     model.addAttribute("chatType", ChatType.GROUP);
@@ -168,7 +168,7 @@ public class ChatSettingsController extends BaseController{
         }
 
         // Обновление названия
-        chatService.updateChatName(id, name);
+        chatService.updateChatName(id, name, auth.getName());
         return "redirect:/group-set?id=" + id;
     }
 
@@ -225,7 +225,7 @@ public class ChatSettingsController extends BaseController{
             return "group-set";
         }
 
-        chatService.addMembersToGroup(id, userIds);
+        chatService.addMembersToGroup(id, userIds, auth.getName());
         return "redirect:/group-set?id=" + id;
     }
 
@@ -250,7 +250,7 @@ public class ChatSettingsController extends BaseController{
         }
 
         try {
-            chatService.removeMemberFromGroup(id, userId);
+            chatService.removeMemberFromGroup(id, userId, auth.getName());
             return "redirect:/group-list/" + id + "?page=" + page + "&size=" + size + "&scrollPosition=" + scrollPosition;
         } catch (IllegalArgumentException | IllegalStateException e) {
             return addErrorToModel(model, id, chat, currentMember, page, size, e.getMessage(), "group-list");
@@ -311,25 +311,12 @@ public class ChatSettingsController extends BaseController{
         }
     }
 
-    @PostMapping("/group/{id}/reset-invite")
-    public String resetInviteLink(@PathVariable("id") Long id, Model model, Authentication auth) {
-        try {
-            chatService.resetInviteLink(id, auth.getName());
-            return "redirect:/group/" + id + "/invite";
-        } catch (IllegalArgumentException | SecurityException e) {
-            model.addAttribute("error", e.getMessage());
-            model.addAttribute("chatType", ChatType.GROUP);
-            model.addAttribute("userEmail", auth.getName());
-            return "error";
-        }
-    }
-
     @GetMapping("/group/join")
     public String joinGroup(@RequestParam(name = "link") String link, Authentication auth, Model model) {
         try {
             User user = userService.findByEmail(auth.getName());
             chatService.joinGroupByLink(link, user.getId());
-            Chat chat = chatService.findByInviteLink(link);
+            Chat chat = chatService.findByInviteLink(link,auth.getName());
             model.addAttribute("userEmail", auth.getName());
             return "redirect:/group?id=" + chat.getId();
         } catch (IllegalArgumentException | IllegalStateException e) {
@@ -346,7 +333,7 @@ public class ChatSettingsController extends BaseController{
             User currentUser = userService.findByEmail(auth.getName());
             Chat chat = chatService.getChat(id, auth.getName());
             if (chat.getType() == ChatType.PERSONAL || chatService.getChatMember(id, currentUser.getEmail()).isAdmin()) {
-                chatService.deleteChat(id);
+                chatService.deleteChat(id, auth.getName());
                 return "redirect:/chats";
             }
             throw new IllegalStateException("Только администратор может удалить чат");

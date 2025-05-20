@@ -1,11 +1,13 @@
 package com.project.messenger.controller;
 
 import com.project.messenger.model.*;
+import com.project.messenger.model.dto.MessageDTO;
 import com.project.messenger.model.dto.WebSocketMessageDTO;
 import com.project.messenger.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -47,6 +49,17 @@ public class MessageController {
     @Autowired
     private SimpMessagingTemplate simpMessagingTemplate;
 
+    @GetMapping("/chat/{chatId}/messages/load")
+    @ResponseBody
+    public Page<MessageDTO> loadMoreMessages(
+            @PathVariable("chatId") Long chatId,
+            @RequestParam("page") int page,
+            @RequestParam("size") int size,
+            Authentication auth) {
+        User currentUser = userService.findByEmail(auth.getName());
+        Page<MessageDTO> messages = chatService.getMessages(chatId, currentUser.getId(), page, size);
+        return messages;
+    }
 
     @MessageMapping("/chat/{chatId}/read")
     public void markMessagesAsRead(@DestinationVariable("chatId") Long chatId, Principal principal) {

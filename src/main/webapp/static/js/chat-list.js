@@ -1,0 +1,306 @@
+window.messenger = window.messenger || {
+    getUserEmail: function() {
+        const meta = document.querySelector('meta[name="user-email"]');
+        const email = meta ? meta.getAttribute('content') : null;
+        console.log('getUserEmail вызван, результат:', email);
+        return email;
+    },
+    getCsrfToken: function() {
+        const meta = document.querySelector('meta[name="_csrf"]');
+        const token = meta ? meta.getAttribute('content') : null;
+        console.log('getCsrfToken вызван, результат:', token);
+        return token;
+    },
+    getCsrfHeader: function() {
+        const meta = document.querySelector('meta[name="_csrf_header"]');
+        const header = meta ? meta.getAttribute('content') : null;
+        console.log('getCsrfHeader вызван, результат:', header);
+        return header;
+    }
+};
+
+window.messenger.userEmail = window.messenger.getUserEmail();
+console.log('window.messenger.userEmail инициализирован:', window.messenger.userEmail);
+
+var notificationSocket = null;
+var notificationStompClient = null;
+var notificationSubscriptions = [];
+var reconnectAttemptsNotification = 0;
+var maxReconnectAttempts = 5;
+var reconnectDelay = 1000;
+let onlineUsers = new Set(JSON.parse(localStorage.getItem('onlineUsers') || '[]'));
+
+function updateOnlineStatus(email, isOnline) {
+    console.log(`Обновление статуса онлайна для ${email}: ${isOnline}`);
+    if (!isOnline && email === window.messenger.userEmail) {
+        console.log(`Игнорируем offline для текущего пользователя ${email}`);
+        return;
+    }
+    if (isOnline) {
+        onlineUsers.add(email);
+    } else {
+        onlineUsers.delete(email);
+    }
+    localStorage.setItem('onlineUsers', JSON.stringify(Array.from(onlineUsers)));
+    console.log('Текущие онлайн-пользователи:', Array.from(onlineUsers));
+
+    // Обновление индикатора рядом с именем
+    const nameIndicators = document.querySelectorAll(`.online-indicator-name[data-user-email="${email}"]`);
+    nameIndicators.forEach(indicator => {
+        indicator.style.display = isOnline ? 'inline-block' : 'none';
+        console.log(`${isOnline ? 'Показан' : 'Скрыт'} значок онлайна для имени ${email}`);
+    });
+}
+
+function fetchOnlineUsers() {
+    const csrfToken = window.messenger.getCsrfToken();
+    const csrfHeader = window.messenger.getCsrfHeader();
+    if (!csrfToken || !csrfHeader) {
+        console.warn('CSRF-токен или заголовок не определены, пропускаем fetchOnlineUsers');
+        return;
+    }
+    fetch('/api/online-users', {
+        headers: {
+            [csrfHeader]: csrfToken
+        }
+    })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Ошибка загрузки списка онлайн-пользователей: ' + response.statusText);
+            }
+            return response.json();
+        })
+        .then(users => {
+            console.log('Получен список онлайн-пользователей:', users);
+            users.forEach(user => updateOnlineStatus(user.email, user.online));
+            if (window.messenger.userEmail) {
+                updateOnlineStatus(window.messenger.userEmail, true);
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка получения онлайн-пользователей:', error);
+            Array.from(onlineUsers).forEach(email => updateOnlineStatus(email, true));
+            if (window.messenger.userEmail) {
+                updateOnlineStatus(window.messenger.userEmail, true);
+            }
+        });
+}
+
+function connectNotificationWebSocket() {
+    if (notificationSocket && notificationSocket.readyState === WebSocket.OPEN) {
+        console.log('Notification WebSocket уже открыт');
+        return;
+    }
+    let socket;
+    try {
+        socket = new SockJS('/ws', null, { withCredentials: true });
+        if (!socket) {
+            throw new Error('SockJS не инициализирован');
+        }
+    } catch (e) {
+        console.error('Ошибка создания SockJS:', e);
+        scheduleReconnect('notification');
+        return;
+    }
+    notificationSocket = socket;
+    notificationStompClient = Stomp.over(socket);
+
+    notificationStompClient.connect(
+        {},
+        function(frame) {
+            console.log('Notification STOMP Connected: ' + frame);
+            reconnectAttemptsNotification = 0;
+
+            // Очищаем старые подписки
+            notificationSubscriptions.forEach(sub => {
+                try {
+                    sub.unsubscribe();
+                } catch (e) {
+                    console.warn('Ошибка отписки:', e);
+                }
+            });
+            notificationSubscriptions = [];
+
+            // Создаём новые подписки
+            notificationSubscriptions.push(
+                notificationStompClient.subscribe('/user/queue/notifications', function(message) {
+                    console.log('Получено уведомление: ', message.body);
+                    try {
+                        var notification = JSON.parse(message.body);
+                        showNotification(notification);
+                    } catch (error) {
+                        console.error('Ошибка парсинга уведомления: ', error);
+                    }
+                })
+            );
+            notificationSubscriptions.push(
+                notificationStompClient.subscribe('/topic/online-status', function(message) {
+                    console.log('Получен статус онлайна: ', message.body);
+                    try {
+                        var status = JSON.parse(message.body);
+                        updateOnlineStatus(status.email, status.online);
+                    } catch (error) {
+                        console.error('Ошибка парсинга статуса онлайна: ', error);
+                    }
+                })
+            );
+
+            // Отправляем heartbeat
+            setInterval(() => {
+                if (notificationStompClient && notificationStompClient.connected) {
+                    console.log('Отправка heartbeat');
+                    notificationStompClient.send('/app/heartbeat', {}, JSON.stringify({}));
+                }
+            }, 60000);
+        },
+        function(error) {
+            console.error('Ошибка WebSocket уведомлений:', error);
+            cleanupNotificationWebSocket();
+            scheduleReconnect('notification');
+        }
+    );
+
+    notificationSocket.onclose = function(event) {
+        console.log('Notification WebSocket закрыт: ', event);
+        cleanupNotificationWebSocket();
+        scheduleReconnect('notification');
+    };
+}
+
+function cleanupNotificationWebSocket() {
+    if (notificationSubscriptions.length > 0) {
+        notificationSubscriptions.forEach(sub => {
+            try {
+                sub.unsubscribe();
+            } catch (e) {
+                console.warn('Ошибка отписки:', e);
+            }
+        });
+        notificationSubscriptions = [];
+    }
+    if (notificationStompClient) {
+        try {
+            notificationStompClient.disconnect();
+        } catch (e) {
+            console.warn('Ошибка отключения STOMP:', e);
+        }
+        notificationStompClient = null;
+    }
+    notificationSocket = null;
+}
+
+function scheduleReconnect(type) {
+    const attempts = type === 'chat' ? reconnectAttemptsChat : reconnectAttemptsNotification;
+    if (attempts >= maxReconnectAttempts) {
+        console.error(`Достигнуто максимальное количество попыток переподключения для ${type} WebSocket`);
+        alert('Соединение потеряно. Пожалуйста, обновите страницу.');
+        return;
+    }
+    const delay = reconnectDelay * Math.pow(2, attempts);
+    console.log(`Планируется попытка переподключения ${attempts + 1} для ${type} WebSocket через ${delay}мс`);
+    setTimeout(() => {
+        if (type === 'chat') {
+            reconnectAttemptsChat++;
+            connectChatWebSocket();
+        } else {
+            reconnectAttemptsNotification++;
+            connectNotificationWebSocket();
+        }
+    }, delay);
+}
+
+function showNotification(notification) {
+    console.log('Отображение уведомления: ', notification);
+    const chatItem = document.querySelector(`#chats-list li[data-chat-id="${notification.chatId}"]`);
+    if (!chatItem) {
+        console.warn(`Чат с chatId ${notification.chatId} не найден в списке`);
+        return;
+    }
+    const toast = document.createElement('div');
+    toast.className = 'notification-toast';
+    const senderUsername = notification.senderUsername || 'Пользователь';
+    let messageText = notification.message || notification.content || 'Новое сообщение';
+    if (notification.files && Array.isArray(notification.files) && notification.files.length > 0) {
+        const fileNames = notification.files.map(file => `[Файл: ${file.fileName || 'Неизвестный файл'}]`).join(' ');
+        messageText = messageText ? `${messageText} ${fileNames}` : fileNames;
+    }
+    toast.innerHTML = `
+        <div class="content">
+            ${senderUsername}: ${messageText}
+        </div>
+        <span class="close" onclick="this.parentElement.classList.remove('show'); setTimeout(() => this.parentElement.remove(), 300);">×</span>
+    `;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+        toast.className += ' show';
+    }, 100);
+    setTimeout(() => {
+        toast.className = toast.className.replace(' show', '');
+        setTimeout(() => {
+            toast.remove();
+        }, 300);
+    }, 5000);
+    chatItem.style.backgroundColor = '#e0f7fa';
+    setTimeout(() => {
+        chatItem.style.backgroundColor = '';
+    }, 5000);
+    const lastMessageElement = chatItem.querySelector('.last-mess');
+    if (lastMessageElement) {
+        lastMessageElement.textContent = messageText.length > 50 ? messageText.substring(0, 47) + '...' : messageText;
+    }
+    // Обновление счётчика непрочитанных сообщений
+    if (notification.senderEmail !== window.messenger.userEmail && notification.chatId != chatId) {
+        const unreadCountElement = chatItem.querySelector('.circleUnreadCount');
+        let currentUnreadCount = 0;
+        if (unreadCountElement) {
+            currentUnreadCount = parseInt(unreadCountElement.textContent) || 0;
+        }
+        currentUnreadCount += 1;
+        if (unreadCountElement) {
+            unreadCountElement.textContent = currentUnreadCount;
+            unreadCountElement.style.display = 'block';
+        } else {
+            const dateLastMess = chatItem.querySelector('.date-last-mess');
+            if (dateLastMess) {
+                const newUnreadCountElement = document.createElement('div');
+                newUnreadCountElement.className = 'circleUnreadCount';
+                newUnreadCountElement.textContent = currentUnreadCount;
+                // Вставляем перед <p> в .date-last-mess, как в шаблоне
+                const dateParagraph = dateLastMess.querySelector('p');
+                if (dateParagraph) {
+                    dateLastMess.insertBefore(newUnreadCountElement, dateParagraph);
+                } else {
+                    dateLastMess.appendChild(newUnreadCountElement);
+                }
+            }
+        }
+        console.log(`Увеличен unreadCount для chatId ${notification.chatId} до ${currentUnreadCount}`);
+    } else {
+        console.log('Счётчик не обновлён: ',
+            notification.senderEmail === window.messenger.userEmail
+                ? 'Сообщение от текущего пользователя'
+                : 'Уведомление для активного чата');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Попытка подключения WebSocket уведомлений с userEmail:', window.messenger.userEmail);
+    if (window.messenger.userEmail) {
+        connectNotificationWebSocket();
+        fetchOnlineUsers();
+    } else {
+        console.warn('userEmail не найден, WebSocket уведомлений не подключен');
+        setTimeout(() => {
+            window.messenger.userEmail = window.messenger.getUserEmail();
+            console.log('Повторная инициализация userEmail:', window.messenger.userEmail);
+            if (window.messenger.userEmail) {
+                connectNotificationWebSocket();
+                fetchOnlineUsers();
+            }
+        }, 1000);
+    }
+});
+
+window.addEventListener('beforeunload', () => {
+    cleanupNotificationWebSocket();
+});

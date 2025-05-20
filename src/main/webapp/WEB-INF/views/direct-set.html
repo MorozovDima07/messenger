@@ -6,8 +6,6 @@
     <title>Direct Settings - Messenger</title>
     <link th:href="@{/static/site.css}" rel="stylesheet"/>
     <meta name="user-email" th:content="${userEmail}"/>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
     <th:block th:replace="~{fragments/header :: head}"></th:block>
 </head>
 <body>
@@ -159,9 +157,6 @@
     </div>
 </div>
 <input type="hidden" id="chatType" th:value="${chat != null ? chat.type : ''}">
-<meta name="_csrf" th:content="${_csrf.token}"/>
-<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
-<meta name="user-email" th:content="${userEmail}"/>
 
 <script th:inline="javascript">
     let accumulatedFiles = [];
@@ -524,17 +519,35 @@
         if (message.tempId && (message.sentAt || message.messageId || message.id)) {
             removeTempMessage(message.tempId);
         }
-        if (message.sentAt && !message.date) {
-            try {
-                const sentAt = new Date(message.sentAt);
-                const day = String(sentAt.getDate()).padStart(2, '0');
-                const month = String(sentAt.getMonth() + 1).padStart(2, '0');
-                const year = sentAt.getFullYear();
-                const hours = String(sentAt.getHours()).padStart(2, '0');
-                const minutes = String(sentAt.getMinutes()).padStart(2, '0');
-                message.date = `${day}.${month}.${year} ${hours}:${minutes}`;
-            } catch (e) {
-                console.warn('Ошибка форматирования sentAt: ', message.sentAt, e);
+
+        // Format date
+        if (!message.date) {
+            if (message.sentAt) {
+                try {
+                    const sentAt = new Date(message.sentAt);
+                    if (isNaN(sentAt.getTime())) {
+                        console.warn('Недопустимый sentAt: ', message.sentAt);
+                        throw new Error('Invalid date');
+                    }
+                    const day = String(sentAt.getDate()).padStart(2, '0');
+                    const month = String(sentAt.getMonth() + 1).padStart(2, '0');
+                    const year = sentAt.getFullYear();
+                    const hours = String(sentAt.getHours()).padStart(2, '0');
+                    const minutes = String(sentAt.getMinutes()).padStart(2, '0');
+                    message.date = `${day}.${month}.${year} ${hours}:${minutes}`;
+                } catch (e) {
+                    console.warn('Ошибка форматирования sentAt: ', message.sentAt, e);
+                    const now = new Date();
+                    const day = String(now.getDate()).padStart(2, '0');
+                    const month = String(now.getMonth() + 1).padStart(2, '0');
+                    const year = now.getFullYear();
+                    const hours = String(now.getHours()).padStart(2, '0');
+                    const minutes = String(now.getMinutes()).padStart(2, '0');
+                    message.date = `${day}.${month}.${year} ${hours}:${minutes}`;
+                }
+            } else {
+                // Fallback for temporary messages or missing sentAt
+                console.log('sentAt отсутствует, используем текущую дату');
                 const now = new Date();
                 const day = String(now.getDate()).padStart(2, '0');
                 const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -544,6 +557,7 @@
                 message.date = `${day}.${month}.${year} ${hours}:${minutes}`;
             }
         }
+
         message.userAvatar = message.senderAvatarPath || '/static/icons/user.svg';
         const li = createMessageElement(message, isUserSend, messageId);
         messagesList.appendChild(li);
@@ -769,12 +783,42 @@
         }, delay);
     }
 
+    function scrollToBottom(messagesList) {
+        messagesList.scrollTop = messagesList.scrollHeight;
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         bindFormListener();
         bindChatItemListeners();
         const messagesList = document.getElementById('messages');
         if (messagesList) {
-            messagesList.scrollTop = messagesList.scrollHeight;
+            scrollToBottom(messagesList);
+
+            const mediaElements = messagesList.querySelectorAll('img.file-preview-img, video.file-preview-video');
+            let loadedMediaCount = 0;
+            const totalMediaCount = mediaElements.length;
+
+            if (totalMediaCount > 0) {
+                mediaElements.forEach(element => {
+                    element.addEventListener('load', () => {
+                        loadedMediaCount++;
+                        if (loadedMediaCount === totalMediaCount) {
+                            scrollToBottom(messagesList);
+                        }
+                    });
+                    element.addEventListener('error', () => {
+                        loadedMediaCount++;
+                        if (loadedMediaCount === totalMediaCount) {
+                            scrollToBottom(messagesList);
+                        }
+                    });
+                });
+            }
+
+            setTimeout(() => {
+                scrollToBottom(messagesList);
+            }, 250);
+
             messagesList.addEventListener('scroll', function() {
                 if (messagesList.scrollTop < 100 && !isLoading && hasMoreMessages) {
                     loadMoreMessages();
@@ -786,13 +830,11 @@
         } else {
             console.warn('fetchOnlineUsers не определён');
         }
-        // Проверяем, не подключён ли уже notification WebSocket
         if (typeof connectNotificationWebSocket === 'function' && (!window.notificationSocket || window.notificationSocket.readyState !== WebSocket.OPEN)) {
             connectNotificationWebSocket();
         } else {
             console.log('Notification WebSocket уже подключён или connectNotificationWebSocket не определён');
         }
-        if (chatId) connectChatWebSocket();
         setTimeout(() => {
             initialMessagesLoaded = false;
         }, 1000);

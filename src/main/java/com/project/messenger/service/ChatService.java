@@ -1,5 +1,6 @@
 package com.project.messenger.service;
 
+import com.project.messenger.exception.*;
 import com.project.messenger.model.*;
 import com.project.messenger.model.dto.ChatDTO;
 import com.project.messenger.model.dto.ChatMemberDTO;
@@ -69,59 +70,64 @@ public class ChatService {
     }
 
     @Transactional(readOnly = true)
-    public Chat findByInviteLink(String link) {
-        return chatRepository.findByInviteLink(link)
-                .orElseThrow(() -> new IllegalArgumentException("Чат не найден"));
-    }
-
-    @Transactional
-    public void updateChatAvatar(Long chatId, MultipartFile avatarFile) throws IOException {
-        Chat chat = chatRepository.findById(chatId)
-                .orElseThrow(() -> new IllegalArgumentException("Чат не найден"));
-
-        if (avatarFile != null && !avatarFile.isEmpty()) {
-            String uploadDirGroup = "uploads/group-avatars/";
-            java.io.File dir = new java.io.File(uploadDirGroup);
-            if (!dir.exists()) {
-                dir.mkdirs();
-            }
-
-            String contentType = avatarFile.getContentType();
-            if (contentType == null || !contentType.startsWith("image/")) {
-                throw new IOException("Файл должен быть изображением (JPEG, PNG)");
-            }
-
-            if (chat.getAvatarPath() != null) {
-                java.io.File oldAvatar = new java.io.File(chat.getAvatarPath().substring(1)); // Убираем начальный слэш
-                if (oldAvatar.exists()) {
-                    oldAvatar.delete();
-                }
-            }
-
-            String fileName = "group_" + chatId + "_" + UUID.randomUUID().toString() + "." + getFileExtension(avatarFile.getOriginalFilename());
-            java.io.File dest = new java.io.File(dir.getAbsolutePath() + java.io.File.separator + fileName);
-
-            BufferedImage originalImage = ImageIO.read(avatarFile.getInputStream());
-            int targetSize = 400;
-            BufferedImage resizedImage;
-
-            if (originalImage.getWidth() < originalImage.getHeight()) {
-                resizedImage = Scalr.resize(originalImage, Scalr.Method.QUALITY, Scalr.Mode.FIT_TO_WIDTH, targetSize);
-            } else {
-                resizedImage = Scalr.resize(originalImage, Scalr.Method.QUALITY, Scalr.Mode.FIT_TO_HEIGHT, targetSize);
-            }
-
-            ImageIO.write(resizedImage, getFileExtension(avatarFile.getOriginalFilename()), dest);
-
-            chat.setAvatarPath("/" + uploadDirGroup + fileName);
-            chatRepository.save(chat);
+    public Chat findByInviteLink(String link, String userEmail) {
+        Chat chat = chatRepository.findByInviteLink(link)
+                .orElseThrow(() -> new ChatNotFoundException(0L));
+        if (!chatMemberRepository.existsByChatIdAndUserEmail(chat.getId(), userEmail)) {
+            throw new AccessDeniedException("У вас нет доступа к этому чату");
         }
+        return chat;
     }
 
     @Transactional
-    public void updateChatName(Long chatId, String name) {
-        Chat chat = chatRepository.findById(chatId)
-                .orElseThrow(() -> new IllegalArgumentException("Чат не найден"));
+    public void updateChatAvatar(Long chatId, MultipartFile avatarFile, String userEmail) throws IOException {
+        Chat chat = getChat(chatId, userEmail);
+
+        if (avatarFile == null || avatarFile.isEmpty()) {
+            throw new FileUploadException("Файл аватара не предоставлен");
+        }
+
+        String contentType = avatarFile.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw new FileUploadException("Файл должен быть изображением (JPEG, PNG)");
+        }
+
+        String uploadDirGroup = "uploads/group-avatars/";
+        java.io.File dir = new java.io.File(uploadDirGroup);
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw new FileUploadException("Не удалось создать директорию для загрузки аватара");
+        }
+
+        if (chat.getAvatarPath() != null) {
+            java.io.File oldAvatar = new java.io.File(chat.getAvatarPath().substring(1));
+            if (oldAvatar.exists()) {
+                oldAvatar.delete();
+            }
+        }
+
+        String fileName = "group_" + chatId + "_" + UUID.randomUUID() + "." + getFileExtension(avatarFile.getOriginalFilename());
+        java.io.File dest = new java.io.File(dir.getAbsolutePath() + java.io.File.separator + fileName);
+
+        BufferedImage originalImage = ImageIO.read(avatarFile.getInputStream());
+        if (originalImage == null) {
+            throw new FileUploadException("Не удалось прочитать изображение");
+        }
+        int targetSize = 400;
+        BufferedImage resizedImage = originalImage.getWidth() < originalImage.getHeight()
+                ? Scalr.resize(originalImage, Scalr.Method.QUALITY, Scalr.Mode.FIT_TO_WIDTH, targetSize)
+                : Scalr.resize(originalImage, Scalr.Method.QUALITY, Scalr.Mode.FIT_TO_HEIGHT, targetSize);
+
+        if (!ImageIO.write(resizedImage, getFileExtension(avatarFile.getOriginalFilename()), dest)) {
+            throw new FileUploadException("Не удалось сохранить изображение");
+        }
+
+        chat.setAvatarPath("/" + uploadDirGroup + fileName);
+        chatRepository.save(chat);
+    }
+
+    @Transactional
+    public void updateChatName(Long chatId, String name, String userEmail) {
+        Chat chat = getChat(chatId, userEmail);
         chat.setName(name);
         chatRepository.save(chat);
     }
@@ -136,27 +142,37 @@ public class ChatService {
     @Transactional(readOnly = true)
     public Chat getChat(Long chatId, String email) {
         Chat chat = chatRepository.findById(chatId)
-                .orElseThrow(() -> new IllegalArgumentException("Чат не найден"));
+                .orElseThrow(() -> new ChatNotFoundException(chatId));
         if (!chatMemberRepository.existsByChatIdAndUserEmail(chatId, email)) {
-            throw new SecurityException("У вас нет доступа к этому чату");
+            throw new AccessDeniedException("У вас нет доступа к этому чату");
+        }
+        return chat;
+    }
+
+    public Chat getChatUsingUserId(Long chatId, Long userId) {
+        Chat chat = chatRepository.findById(chatId)
+                .orElseThrow(() -> new ChatNotFoundException(chatId));
+        if (!chatMemberRepository.existsByChatIdAndUserId(chatId, userId)) {
+            throw new AccessDeniedException("У вас нет доступа к этому чату");
         }
         return chat;
     }
 
     @Transactional(readOnly = true)
     public Chat getGroupChat(Long chatId, String email) {
-        Chat chat = chatRepository.findById(chatId)
-                .orElseThrow(() -> new IllegalArgumentException("Чат не найден"));
+        Chat chat = getChat(chatId, email);
         if (!chatMemberRepository.existsByChatIdAndUserEmail(chatId, email)) {
-            throw new IllegalArgumentException("Вы не участник чата");
+            throw new AccessDeniedException("У вас нет доступа к этому чату");
         }
         if (chat.getType() != ChatType.GROUP) {
-            throw new IllegalArgumentException("Доступно только для групповых чатов");
+            throw new InvalidChatOperationException("Доступно только для групповых чатов");
         }
         return chat;
     }
 
+    @Transactional(readOnly = true)
     public Page<ChatMemberDTO> getChatMembers(Long chatId, String email, Pageable pageable) {
+        getChat(chatId, email);
         return chatMemberRepository.findByChatId(chatId, pageable).map(member -> {
             ChatMemberDTO dto = new ChatMemberDTO();
             dto.setUserId(member.getUser().getId());
@@ -164,20 +180,17 @@ public class ChatService {
             dto.setEmail(member.getUser().getEmail());
             dto.setAdmin(member.isAdmin());
             dto.setLastActive(member.getUser().getLastActive());
-            dto.setOnline(isUserOnline(member.getUser().getLastActive()));
+            dto.setOnline(false); //доработать в будущем
             dto.setAvatarPath(member.getUser().getAvatarPath());
             return dto;
         });
     }
 
-    private boolean isUserOnline(LocalDateTime lastActive) {
-        return lastActive != null && lastActive.isAfter(LocalDateTime.now().minusMinutes(5));
-    }
-
     @Transactional(readOnly = true)
     public ChatMember getChatMember(Long chatId, String email) {
+        getChat(chatId, email);
         return chatMemberRepository.findByChatIdAndUserEmail(chatId, email)
-                .orElseThrow(() -> new IllegalArgumentException("Участник не найден"));
+                .orElseThrow(() -> new InvalidChatOperationException("Участник не найден в чате"));
     }
 
     @Transactional(readOnly = true)
@@ -187,17 +200,24 @@ public class ChatService {
                 .map(ChatMember::getUser)
                 .filter(user -> !user.getEmail().equals(currentUserEmail))
                 .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Собеседник не найден в чате"));
+                .orElseThrow(() -> new InvalidChatOperationException("Собеседник не найден в чате"));
     }
 
     @Transactional
-    public Chat createDirectChat(Long userId1, Long userId2) {
-        User user1 = userRepository.findById(userId1)
-                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
-        User user2 = userRepository.findById(userId2)
-                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+    public Chat createDirectChat(String currentUserEmail, String recipientEmail) {
+        if (currentUserEmail.equals(recipientEmail)) {
+            throw new InvalidChatOperationException("Нельзя создать чат с самим собой");
+        }
+        User user1 = userRepository.findByEmail(currentUserEmail)
+                .orElseThrow(() -> new UserNotFoundException(currentUserEmail));
+        User user2 = userRepository.findByEmail(recipientEmail)
+                .orElseThrow(() -> new UserNotFoundException(recipientEmail));
 
-        Optional<Chat> existingChat = chatRepository.findPersonalChatBetweenUsers(userId1, userId2);
+        if (userService.isBlocked(user1.getId(), user2.getId())) {
+            throw new InvalidChatOperationException("Пользователь заблокирован");
+        }
+
+        Optional<Chat> existingChat = chatRepository.findPersonalChatBetweenUsers(user1.getId(), user2.getId());
         if (existingChat.isPresent()) {
             return existingChat.get();
         }
@@ -214,14 +234,41 @@ public class ChatService {
     }
 
     @Transactional
-    public Chat createGroupChat(String name, Long creatorId, List<Long> memberIds, NotificationLevel notificationLevel) {
+    public Chat createGroupChat(String name, String creatorEmail, List<String> memberEmails, NotificationLevel notificationLevel) {
         if (name == null || name.trim().isEmpty()) {
-            throw new IllegalArgumentException("Название чата не может быть пустым для группового чата");
+            throw new InvalidChatOperationException("Название чата не может быть пустым для группового чата");
         }
-        User creator = userRepository.findById(creatorId)
-                .orElseThrow(() -> new IllegalArgumentException("Создатель с ID " + creatorId + " не найден"));
 
-        Set<Long> uniqueMemberIds = new HashSet<>(memberIds);
+        User creator = userService.findByEmail(creatorEmail);
+        Set<Long> memberIds = new HashSet<>();
+        List<String> errors = new ArrayList<>();
+
+        for (String email : memberEmails) {
+            if (email == null || email.trim().isEmpty()) {
+                continue;
+            }
+            try {
+                User user = userService.findByEmail(email.trim());
+                if (user.getId().equals(creator.getId())) {
+                    continue; // Пропускаем создателя
+                }
+                if (userService.isBlocked(creator.getId(), user.getId())) {
+                    errors.add("Пользователь с email " + email + " заблокирован");
+                } else if (!memberIds.contains(user.getId())) {
+                    memberIds.add(user.getId());
+                }
+            } catch (IllegalArgumentException e) {
+                errors.add("Пользователь с email " + email + " не найден");
+            }
+        }
+
+        if (!errors.isEmpty()) {
+            throw new InvalidChatOperationException(String.join("; ", errors));
+        }
+
+        if (memberIds.isEmpty()) {
+            throw new InvalidChatOperationException("Групповой чат должен содержать хотя бы одного участника помимо вас");
+        }
 
         Chat chat = new Chat();
         chat.setName(name);
@@ -234,17 +281,9 @@ public class ChatService {
         List<ChatMember> members = new ArrayList<>();
         members.add(createChatMember(chat, creator, true, notificationLevel));
 
-        for (Long memberId : uniqueMemberIds) {
-            if (memberId.equals(creatorId)) {
-                continue;
-            }
+        for (Long memberId : memberIds) {
             User member = userRepository.findById(memberId)
-                    .orElseThrow(() ->
-                        new IllegalArgumentException("Участник с ID " + memberId + " не найден")
-                    );
-            if (userService.isBlocked(creator.getId(), member.getId())) {
-                throw new IllegalArgumentException("Пользователь с email " + member.getEmail() + " заблокирован");
-            }
+                    .orElseThrow(() -> new UserNotFoundException(memberId));
             members.add(createChatMember(chat, member, false, notificationLevel));
         }
 
@@ -295,11 +334,10 @@ public class ChatService {
     }
 
     @Transactional
-    public void addMembersToGroup(Long chatId, List<Long> userIds) {
-        Chat chat = chatRepository.findById(chatId)
-                .orElseThrow(() -> new IllegalArgumentException("Чат не найден"));
+    public void addMembersToGroup(Long chatId, List<Long> userIds, String email) {
+        Chat chat = getChat(chatId, email);
         if (chat.getType() != ChatType.GROUP) {
-            throw new IllegalArgumentException("Можно добавлять участников только в групповые чаты");
+            throw new InvalidChatOperationException("Можно добавлять участников только в групповые чаты");
         }
 
         List<ChatMember> newMembers = new ArrayList<>();
@@ -308,7 +346,7 @@ public class ChatService {
                 continue;
             }
             User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new IllegalArgumentException("Пользователь с ID " + userId + " не найден"));
+                    .orElseThrow(() -> new UserNotFoundException(userId));
             UserSettings settings = userSettingsRepository.findByUserId(userId).orElse(null);
             NotificationLevel defaultLevel = (settings != null) ? settings.getGroupChatNotifications() : NotificationLevel.ALL;
 
@@ -324,31 +362,49 @@ public class ChatService {
             chatMemberRepository.saveAll(newMembers);
         }
 
-        List<Message> messages = messageRepository.findByChatId(chatId);
         for(ChatMember member : newMembers){
-            for(Message message: messages){
-                message.getReadBy().add(member.getUser());
-            }
+            messageRepository.markMessagesAsReadByUser(chatId, member.getUser().getId());
         }
     }
 
     @Transactional
     public void addMemberToGroup(Long chatId, Long userId) {
-        addMembersToGroup(chatId, Collections.singletonList(userId));
+        Chat chat = chatRepository.findById(chatId)
+                .orElseThrow(() -> new ChatNotFoundException(chatId));
+        if (chat.getType() != ChatType.GROUP) {
+            throw new InvalidChatOperationException("Можно добавлять участников только в групповые чаты");
+        }
+
+        if (chatMemberRepository.existsByChatIdAndUserId(chatId, userId)) {
+            return;
+        }
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+        UserSettings settings = userSettingsRepository.findByUserId(userId).orElse(null);
+        NotificationLevel defaultLevel = (settings != null) ? settings.getGroupChatNotifications() : NotificationLevel.ALL;
+
+        ChatMember member = new ChatMember();
+        member.setChat(chat);
+        member.setUser(user);
+        member.setNotifications(defaultLevel);
+        member.setAdmin(false);
+
+        chatMemberRepository.save(member);
+
+        messageRepository.markMessagesAsReadByUser(chatId, member.getUser().getId());
     }
 
     @Transactional
-    public void removeMemberFromGroup(Long chatId, Long userId) {
-        Chat chat = chatRepository.findById(chatId)
-                .orElseThrow(() -> new IllegalArgumentException("Чат не найден"));
+    public void removeMemberFromGroup(Long chatId, Long userId, String userEmail) {
+        Chat chat = getChat(chatId, userEmail);
         if (chat.getType() != ChatType.GROUP) {
-            throw new IllegalArgumentException("Можно удалять участников только из групповых чатов");
+            throw new InvalidChatOperationException("Можно удалять участников только из групповых чатов");
         }
         ChatMember member = chatMemberRepository.findByChatIdAndUserId(chatId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("Участник не найден в чате"));
+                .orElseThrow(() -> new InvalidChatOperationException("Участник не найден в чате"));
 
         if (member.isAdmin()) {
-            throw new IllegalStateException("Нельзя удалить администратора чата");
+            throw new InvalidChatOperationException("Нельзя удалить администратора чата");
         }
 
         chatMemberRepository.delete(member);
@@ -356,25 +412,30 @@ public class ChatService {
 
     @Transactional
     public void leaveGroup(Long chatId, Long userId) {
-        Chat chat = chatRepository.findById(chatId)
-                .orElseThrow(() -> new IllegalArgumentException("Чат не найден"));
+        Chat chat = getChatUsingUserId(chatId,userId);
         if (chat.getType() != ChatType.GROUP) {
-            throw new IllegalArgumentException("Можно покидать только групповые чаты");
+            throw new InvalidChatOperationException("Можно покидать только групповые чаты");
         }
         ChatMember member = chatMemberRepository.findByChatIdAndUserId(chatId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("Вы не являетесь участником чата"));
+                .orElseThrow(() -> new InvalidChatOperationException("Вы не являетесь участником чата"));
 
         if (member.isAdmin()) {
-            throw new IllegalStateException("Администратор не может покинуть чат");
+            throw new InvalidChatOperationException("Администратор не может покинуть чат");
         }
 
         chatMemberRepository.delete(member);
     }
 
     @Transactional
-    public void deleteChat(Long chatId) {
-        Chat chat = chatRepository.findById(chatId)
-                .orElseThrow(() -> new IllegalArgumentException("Чат не найден"));
+    public void deleteChat(Long chatId, String userEmail) {
+        Chat chat = getChat(chatId, userEmail);
+        if (chat.getType() == ChatType.GROUP) {
+            ChatMember member = chatMemberRepository.findByChatIdAndUserEmail(chatId, userEmail)
+                    .orElseThrow(() -> new InvalidChatOperationException("Участник не найден в чате"));
+            if (!member.isAdmin()) {
+                throw new AccessDeniedException("Только администратор может удалить групповой чат");
+            }
+        }
         List<File> files = fileRepository.findByMessageChatId(chatId);
         for (File file : files) {
             try {
@@ -386,18 +447,24 @@ public class ChatService {
         chatRepository.delete(chat);
     }
 
+    @Transactional(readOnly = true)
     public Page<MessageDTO> getMessages(Long chatId, Long currentUserId, int page, int size) {
+        getChatUsingUserId(chatId,currentUserId);
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "timestamp"));
         Page<Message> messagePage = messageRepository.findByChatIdOrderByTimestampDesc(chatId, pageable);
         return messagePage.map(message -> mapToMessageDTO(message, currentUserId));
     }
 
+    @Transactional(readOnly = true)
     public String getInviteLink(Long chatId, String userEmail, HttpServletRequest request) {
-        Chat chat = chatRepository.findChatWithMembersById(chatId)
-                .orElseThrow(() -> new IllegalArgumentException("Чат не найден"));
+        Chat chat = getChat(chatId, userEmail);
 
         if (chat.getType() != ChatType.GROUP) {
-            throw new IllegalStateException("Пригласительные ссылки доступны только для групповых чатов");
+            throw new InvalidChatOperationException("Пригласительные ссылки доступны только для групповых чатов");
+        }
+
+        if (!chatMemberRepository.existsByChatIdAndUserEmail(chatId, userEmail)) {
+            throw new AccessDeniedException("У вас нет доступа к этому чату");
         }
 
         if (chat.getInviteLink() == null || chat.getInviteLink().isEmpty()) {
@@ -411,35 +478,22 @@ public class ChatService {
         return effectiveBaseUrl + "/group/join?link=" + chat.getInviteLink();
     }
 
+    @Transactional
     public void joinGroupByLink(String link, Long userId) {
         Chat chat = chatRepository.findByInviteLink(link)
-                .orElseThrow(() -> new IllegalArgumentException("Недействительная ссылка"));
+                .orElseThrow(() -> new ChatNotFoundException(0L));
 
         if (chat.getType() != ChatType.GROUP) {
-            throw new IllegalStateException("Ссылка недействительна");
+            throw new InvalidChatOperationException("Ссылка недействительна");
         }
 
         boolean alreadyMember = chat.getMembers().stream()
                 .anyMatch(m -> m.getUser().getId().equals(userId));
         if (alreadyMember) {
-            throw new IllegalStateException("Вы уже состоите в этом чате");
+            throw new InvalidChatOperationException("Вы уже состоите в этом чате");
         }
 
         addMemberToGroup(chat.getId(), userId);
-    }
-
-    public void resetInviteLink(Long chatId, String userEmail) {
-        Chat chat = chatRepository.findChatWithMembersById(chatId)
-                .orElseThrow(() -> new IllegalArgumentException("Чат не найден"));
-
-        boolean isAdmin = chat.getMembers().stream()
-                .anyMatch(m -> m.getUser().getEmail().equals(userEmail) && m.isAdmin());
-        if (!isAdmin) {
-            throw new SecurityException("Только администратор может сбросить ссылку");
-        }
-
-        chat.setInviteLink(UUID.randomUUID().toString());
-        chatRepository.save(chat);
     }
 
     @Transactional(readOnly = true)
@@ -517,7 +571,7 @@ public class ChatService {
         for (File file: message.getFiles()){
             System.out.println(message.getId() + " " + file.getId());
         }
-        //пофиксить
+
         List<File> uniqueFiles = new ArrayList<>(new LinkedHashSet<>(message.getFiles()));
         dto.setFiles(uniqueFiles);
 
@@ -542,12 +596,11 @@ public class ChatService {
 
     @Transactional(readOnly = true)
     public Chat getChatWithMembers(Long chatId, String email) {
-        Chat chat = chatRepository.findChatWithMembersById(chatId)
-                .orElseThrow(() -> new IllegalArgumentException("Чат не найден: " + chatId));
+        Chat chat = getChat(chatId, email);
         boolean isMember = chat.getMembers().stream()
                 .anyMatch(member -> member.getUser().getEmail().equals(email));
         if (!isMember) {
-            throw new SecurityException("Пользователь " + email + " не является участником чата " + chatId);
+            throw new AccessDeniedException("Пользователь " + email + " не является участником чата " + chatId);
         }
         return chat;
     }

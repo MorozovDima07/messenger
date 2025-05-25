@@ -83,12 +83,6 @@ public class UserService implements UserServiceInterface {
                 .orElseThrow(() -> new UsernameNotFoundException("Пользователь с id " + id + " не найден"));
     }
 
-    public Long getUserIdByEmail(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("Пользователь с email " + email + " не найден"));
-        return user.getId();
-    }
-
     @Transactional
     public void updateUser(User user) {
         User existingUser = userRepository.findById(user.getId())

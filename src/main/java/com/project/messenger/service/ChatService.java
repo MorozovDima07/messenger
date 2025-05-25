@@ -65,8 +65,46 @@ public class ChatService {
     }
 
     @Transactional(readOnly = true)
-    public Page<ChatDTO> getChatsPage(String email, ChatType chatType, Pageable pageable) {
-        return getChatsForUser(email, chatType, pageable);
+    public Page<ChatDTO> getChatsPage(String email, ChatType chatType, String chatName, Pageable pageable) {
+        if (chatName == null || chatName.isBlank()) {
+            return getChatsForUser(email, chatType, pageable);
+        }
+        return getChatsByName(email, chatName, chatType, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ChatDTO> getChatsByName(String email, String query, ChatType chatType, Pageable pageable) {
+        String normalizedQuery = query.trim().toLowerCase();
+        Long userId = userService.findByEmail(email).getId();
+        Page<Chat> chats;
+        if (chatType == null) {
+            chats = chatRepository.findChatsAmongAll(userId, normalizedQuery, pageable);
+        } else {
+            chats = switch (chatType) {
+                case PERSONAL -> chatRepository.findPersonalChatsByOtherUsername(userId, normalizedQuery, pageable);
+                case GROUP -> chatRepository.findGroupChatsByName(userId, normalizedQuery, pageable);
+            };
+        }
+        return chats.map(chat -> mapToChatDTO(chat, userId, email));
+
+
+//        Long userId = userService.getUserIdByEmail(email);
+//
+//        List<Chat> chats;
+//
+//        if (type == null) {
+//            chats = Stream.concat(
+//                    chatRepository.findPersonalChatsByOtherUsername(userId, normalizedQuery).stream(),
+//                    chatRepository.findGroupChatsByName(userId, normalizedQuery).stream()
+//            ).toList();
+//        } else {
+//            chats = switch (type) {
+//                case PERSONAL -> chatRepository.findPersonalChatsByOtherUsername(userId, normalizedQuery);
+//                case GROUP -> chatRepository.findGroupChatsByName(userId, normalizedQuery);
+//            };
+//        }
+//
+//        return mapToChatDTOs(chats, userId, email);
     }
 
     @Transactional(readOnly = true)
@@ -496,14 +534,6 @@ public class ChatService {
         addMemberToGroup(chat.getId(), userId);
     }
 
-    @Transactional(readOnly = true)
-    public List<ChatDTO> searchChatsByUserAndChatName(String email, String query) {
-        String normalizedQuery = query.trim().toLowerCase();
-        Long userId = userService.getUserIdByEmail(email);
-        List<Chat> chats = chatRepository.findByNameContainingAndUserId(normalizedQuery, userId);
-        return mapToChatDTOs(chats, userId, email);
-    }
-
     private List<ChatDTO> mapToChatDTOs(List<Chat> chats, Long userId, String email) {
         return chats.stream()
                 .map(chat -> mapToChatDTO(chat, userId, email))
@@ -603,27 +633,5 @@ public class ChatService {
             throw new AccessDeniedException("Пользователь " + email + " не является участником чата " + chatId);
         }
         return chat;
-    }
-
-    @Transactional(readOnly = true)
-    public List<ChatDTO> searchChatsByType(String email, String query, @Nullable ChatType type) {
-        String normalizedQuery = query.trim().toLowerCase();
-        Long userId = userService.getUserIdByEmail(email);
-
-        List<Chat> chats;
-
-        if (type == null) {
-            chats = Stream.concat(
-                    chatRepository.findPersonalChatsByOtherUsername(userId, normalizedQuery).stream(),
-                    chatRepository.findGroupChatsByName(userId, normalizedQuery).stream()
-            ).toList();
-        } else {
-            chats = switch (type) {
-                case PERSONAL -> chatRepository.findPersonalChatsByOtherUsername(userId, normalizedQuery);
-                case GROUP -> chatRepository.findGroupChatsByName(userId, normalizedQuery);
-            };
-        }
-
-        return mapToChatDTOs(chats, userId, email);
     }
 }

@@ -6,16 +6,18 @@
 <th:block th:fragment="chat-list(chats)">
     <div class="chat-list">
         <div class="chat-list-search">
-            <a th:href="@{/chats/new(page=${chatsPage.number}, size=${chatsPage.size})}" class="chat-list-item chat-list-item-plus">
+            <a th:href="@{/chats/new(page=${chatsPage.number}, size=${chatsPage.size})}">
                 <div class="circleAddChat"><img th:src="@{/static/icons/plus.svg}" alt="New Chat"/></div>
             </a>
+
             <form th:action="@{/chats/search(page=${chatsPage.number}, size=${chatsPage.size})}" method="get" class="search-form">
                 <input type="hidden" name="_csrf" th:value="${_csrf.token}"/>
-                <input type="text" class="input-chat" id="chatName" name="chatName" th:value="${chatName}" placeholder="Поиск чата..." required/>
-                <a th:if="${chatName != null and !#strings.isEmpty(chatName)}" th:href="@{/chats(page=${chatsPage.number}, size=${chatsPage.size})}" class="chat-list-item">
-                    <img th:src="@{/static/icons/trash.svg}" alt="X"/>
+                <input type="hidden" id="chatType" name="chatType" th:value="${chatType ?: null}"/>
+                <input type="text" class="input-chat" id="chatName" name="chatName" th:value="${chatName}" placeholder="Поиск чата..." autocomplete="off"/>
+                <a class="clean-search" id="cleanSearch">
+                    <img th:src="@{/static/icons/leave.svg}" alt="X"/>
                 </a>
-                <button type="submit" class="chat-list-item"><img th:src="@{/static/icons/search.svg}" alt="Search"/></button>
+                <button type="submit" class="btn-without-style search-btn"><img th:src="@{/static/icons/search.svg}" alt="Search"/></button>
             </form>
         </div>
         <ul id="chats-list" class="chats-ul"
@@ -51,6 +53,9 @@
             </li>
             <li id="sentinel" style="height: 1px; list-style: none;"></li>
         </ul>
+        <p id="no-chats-message" style="display: none; text-align: center; padding: 10px; color: #4c4c4c; width: 90%;">
+            Чаты не найдены
+        </p>
         <div id="loading" style="display: none; text-align: center; padding: 10px;">
             <span class="spinner"></span> Загрузка...
         </div>

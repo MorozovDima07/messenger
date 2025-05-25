@@ -22,6 +22,7 @@ public class BaseController {
     @ModelAttribute("chatsPage")
     public Page<ChatDTO> addChatsToModel(
             @ModelAttribute("chatType") ChatType chatType,
+            @ModelAttribute("chatName") String chatName,
             Authentication auth,
             @ModelAttribute("page") Integer page,
             @ModelAttribute("size") Integer size) {
@@ -33,7 +34,7 @@ public class BaseController {
                 size != null ? size : 10,
                 Sort.by(Sort.Direction.DESC, "lastMessageTimestamp")
         );
-        return chatService.getChatsPage(auth.getName(), chatType, pageable);
+        return chatService.getChatsPage(auth.getName(), chatType, chatName, pageable);
     }
 
     @ModelAttribute("page")

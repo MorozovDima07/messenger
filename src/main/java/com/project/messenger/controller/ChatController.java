@@ -158,26 +158,23 @@ public class ChatController extends BaseController {
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "10") int size,
             @RequestParam(name = "chatType", required = false) ChatType chatType,
+            @RequestParam(name = "chatName", required = false) String chatName,
             Authentication auth) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "lastMessageTimestamp"));
-        return chatService.getChatsPage(auth.getName(), chatType, pageable);
+        return chatService.getChatsPage(auth.getName(), chatType, chatName, pageable);
     }
 
-    @GetMapping("/chats/search")
-    public String searchChats(@RequestParam("chatName") String chatName,
-                              @RequestParam("chatType") String chatType,
-                              Model model, Authentication auth,
-                              HttpServletRequest request) {
-        ChatType type = null;
-
-        if (!"ALL".equals(chatType)) {
-            type = ChatType.valueOf(chatType);
-        }
-
-        List<ChatDTO> chats = chatService.searchChatsByType(auth.getName(), chatName, type);
-        model.addAttribute("chats", chats);
-        model.addAttribute("chatName", chatName);
-
-        return "fragments/chat-list :: chat-list-items";
-    }
+//    @GetMapping("/chats/search")
+//    public Page<ChatDTO> searchChats(@RequestParam("chatName") String chatName,
+//                              @RequestParam(name = "chatType", required = false) ChatType chatType,
+//                              @RequestParam(name = "page", defaultValue = "0") int page,
+//                              @RequestParam(name = "size", defaultValue = "10") int size,
+//                              Model model, Authentication auth) {
+//
+//        List<ChatDTO> chats = chatService.searchChats(auth.getName(), chatName, chatType);
+//        model.addAttribute("chats", chats);
+//        model.addAttribute("chatName", chatName);
+//        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "lastMessageTimestamp"));
+//        return chatService.searchChats(auth.getName(), chatName, chatType, pageable);
+//    }
 }

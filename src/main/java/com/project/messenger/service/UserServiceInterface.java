@@ -17,7 +17,6 @@ public interface UserServiceInterface extends UserDetailsService {
     User registerUser(RegisterRequest request);
     User findByEmail(String email);
     User findById(Long id);
-    Long getUserIdByEmail(String email);
     void updateUser(User user);
     void updateUserSettings(Long userId, NotificationLevel personalChatNotifications,
                             NotificationLevel groupChatNotifications, String theme);

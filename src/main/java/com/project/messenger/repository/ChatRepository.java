@@ -17,28 +17,28 @@ public interface ChatRepository extends JpaRepository<Chat, Long> {
     @Query("SELECT DISTINCT c FROM Chat c JOIN FETCH c.members m WHERE EXISTS " +
             "(SELECT cm FROM ChatMember cm WHERE cm.chat.id = c.id AND cm.user.id = :userId)")
     Page<Chat> findByMembersUserId(@Param("userId") Long userId, Pageable pageable);
+
     @Query("SELECT DISTINCT c FROM Chat c JOIN FETCH c.members m WHERE EXISTS " +
             "(SELECT cm FROM ChatMember cm WHERE cm.chat.id = c.id AND cm.user.id = :userId AND c.type = :type)")
     Page<Chat> findByMembersUserIdAndType(@Param("userId") Long userId, @Param("type") ChatType type, Pageable pageable);
+
     @Query("SELECT c FROM Chat c JOIN c.members m1 JOIN c.members m2 " +
             "WHERE c.type = 'PERSONAL' AND m1.user.id = :userId1 AND m2.user.id = :userId2")
     Optional<Chat> findPersonalChatBetweenUsers(@Param("userId1") Long userId1, @Param("userId2") Long userId2);
+
     @Query("SELECT c FROM Chat c JOIN FETCH c.members WHERE c.inviteLink = :inviteLink")
     Optional<Chat> findByInviteLink(@Param("inviteLink") String inviteLink);
-    @Query("SELECT DISTINCT c FROM Chat c " +
-            "JOIN FETCH c.members m " +
-            "WHERE EXISTS (SELECT cm FROM ChatMember cm WHERE cm.chat.id = c.id AND cm.user.id = :userId) " +
-            "AND LOWER(c.name) LIKE LOWER(CONCAT('%', :query, '%'))")
-    List<Chat> findByNameContainingAndUserId(@Param("query") String query, @Param("userId") Long userId);
+
     boolean existsByInviteLink(String inviteLink);
+
     List<Chat> findByTypeAndMembers_UserId(ChatType type, Long userId);
-    @Query("SELECT c FROM Chat c " +
-            "JOIN FETCH c.members m " +
-            "WHERE EXISTS (SELECT cm FROM ChatMember cm WHERE cm.chat.id = c.id AND cm.user.id = :userId) " +
-            "AND LOWER(c.name) LIKE LOWER(CONCAT('%', :query, '%'))")
-        //TODO сортировка остаётся при пустом поиске, по идее надо сортировать по времени получения сообщения
-//  "AND LOWER(c.name) LIKE LOWER(CONCAT('%', :query, '%')) ORDER BY LOWER(c.name)")
-    List<Chat> findGroupChatsByName(@Param("userId") Long userId, @Param("query") String query);
+
+
+    @Query("SELECT c FROM Chat c JOIN FETCH c.members m WHERE EXISTS " +
+            "(SELECT cm FROM ChatMember cm WHERE cm.chat.id = c.id AND cm.user.id = :userId) " +
+            "AND LOWER(c.name) LIKE LOWER(CONCAT('%', :query, '%')) AND c.type = 'GROUP'")
+    Page<Chat> findGroupChatsByName(@Param("userId") Long userId, @Param("query") String query, Pageable pageable);
+
     @Query("""
     SELECT c FROM Chat c
     JOIN ChatMember cm1 ON cm1.chat = c
@@ -48,8 +48,61 @@ public interface ChatRepository extends JpaRepository<Chat, Long> {
       AND cm1.user.id = :userId
       AND cm2.user.id != :userId
       AND LOWER(u.username) LIKE LOWER(CONCAT('%', :query, '%'))
-    
     """)
-        //ORDER BY LOWER(u.username)
-    List<Chat> findPersonalChatsByOtherUsername(@Param("userId") Long userId, @Param("query") String query);
+    Page<Chat> findPersonalChatsByOtherUsername(@Param("userId") Long userId, @Param("query") String query, Pageable pageable);
+
+    @Query(
+      value = """
+        (SELECT c.* 
+           FROM chats c JOIN chat_members cm ON cm.chat_id = c.id AND cm.user_id = :userId
+             WHERE c.type = 'GROUP' AND LOWER(c.name) LIKE LOWER(CONCAT('%', :query, '%')))
+        UNION
+        (SELECT c.* 
+           FROM chats c
+           JOIN chat_members cm1 ON cm1.chat_id = c.id AND cm1.user_id = :userId
+           JOIN chat_members cm2 ON cm2.chat_id = c.id AND cm2.user_id != :userId
+           JOIN users u ON u.id = cm2.user_id
+             WHERE c.type = 'PERSONAL' AND LOWER(u.username) LIKE LOWER(CONCAT('%', :query, '%')))
+      """,
+      countQuery = """
+        SELECT COUNT(*) FROM (
+          (SELECT c.id 
+             FROM chats c JOIN chat_members cm ON cm.chat_id = c.id AND cm.user_id = :userId
+               WHERE c.type = 'GROUP' AND LOWER(c.name) LIKE LOWER(CONCAT('%', :query, '%')))
+          UNION
+          (SELECT c.id 
+             FROM chats c
+             JOIN chat_members cm1 ON cm1.chat_id = c.id AND cm1.user_id = :userId
+             JOIN chat_members cm2 ON cm2.chat_id = c.id AND cm2.user_id != :userId
+             JOIN users u
+             ON u.id = cm2.user_id
+               WHERE c.type = 'PERSONAL' AND LOWER(u.username) LIKE LOWER(CONCAT('%', :query, '%')))
+          ) AS combined
+      """,
+      nativeQuery = true
+    )
+    Page<Chat> findChatsAmongAll(@Param("userId") Long userId,  @Param("query")  String query, Pageable pageable);
+
+
+
+
+//    @Query("SELECT c FROM Chat c " +
+//            "JOIN FETCH c.members m " +
+//            "WHERE EXISTS (SELECT cm FROM ChatMember cm WHERE cm.chat.id = c.id AND cm.user.id = :userId) " +
+//            "AND LOWER(c.name) LIKE LOWER(CONCAT('%', :query, '%'))")
+        //TODO сортировка остаётся при пустом поиске, по идее надо сортировать по времени получения сообщения
+//  "AND LOWER(c.name) LIKE LOWER(CONCAT('%', :query, '%')) ORDER BY LOWER(c.name)")
+//    List<Chat> findGroupChatsByName(@Param("userId") Long userId, @Param("query") String query);
+
+//    @Query("""
+//    SELECT c FROM Chat c
+//    JOIN ChatMember cm1 ON cm1.chat = c
+//    JOIN ChatMember cm2 ON cm2.chat = c
+//    JOIN User u ON u = cm2.user
+//    WHERE c.type = 'PERSONAL'
+//      AND cm1.user.id = :userId
+//      AND cm2.user.id != :userId
+//      AND LOWER(u.username) LIKE LOWER(CONCAT('%', :query, '%'))
+//    """)
+//    List<Chat> findPersonalChatsByOtherUsername(@Param("userId") Long userId, @Param("query") String query);
 }

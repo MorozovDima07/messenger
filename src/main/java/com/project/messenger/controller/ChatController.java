@@ -163,18 +163,4 @@ public class ChatController extends BaseController {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "lastMessageTimestamp"));
         return chatService.getChatsPage(auth.getName(), chatType, chatName, pageable);
     }
-
-//    @GetMapping("/chats/search")
-//    public Page<ChatDTO> searchChats(@RequestParam("chatName") String chatName,
-//                              @RequestParam(name = "chatType", required = false) ChatType chatType,
-//                              @RequestParam(name = "page", defaultValue = "0") int page,
-//                              @RequestParam(name = "size", defaultValue = "10") int size,
-//                              Model model, Authentication auth) {
-//
-//        List<ChatDTO> chats = chatService.searchChats(auth.getName(), chatName, chatType);
-//        model.addAttribute("chats", chats);
-//        model.addAttribute("chatName", chatName);
-//        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "lastMessageTimestamp"));
-//        return chatService.searchChats(auth.getName(), chatName, chatType, pageable);
-//    }
 }

@@ -52,57 +52,52 @@ public interface ChatRepository extends JpaRepository<Chat, Long> {
     Page<Chat> findPersonalChatsByOtherUsername(@Param("userId") Long userId, @Param("query") String query, Pageable pageable);
 
     @Query(
-      value = """
-        (SELECT c.* 
-           FROM chats c JOIN chat_members cm ON cm.chat_id = c.id AND cm.user_id = :userId
-             WHERE c.type = 'GROUP' AND LOWER(c.name) LIKE LOWER(CONCAT('%', :query, '%')))
-        UNION
-        (SELECT c.* 
-           FROM chats c
-           JOIN chat_members cm1 ON cm1.chat_id = c.id AND cm1.user_id = :userId
-           JOIN chat_members cm2 ON cm2.chat_id = c.id AND cm2.user_id != :userId
-           JOIN users u ON u.id = cm2.user_id
-             WHERE c.type = 'PERSONAL' AND LOWER(u.username) LIKE LOWER(CONCAT('%', :query, '%')))
-      """,
-      countQuery = """
-        SELECT COUNT(*) FROM (
-          (SELECT c.id 
-             FROM chats c JOIN chat_members cm ON cm.chat_id = c.id AND cm.user_id = :userId
-               WHERE c.type = 'GROUP' AND LOWER(c.name) LIKE LOWER(CONCAT('%', :query, '%')))
-          UNION
-          (SELECT c.id 
-             FROM chats c
-             JOIN chat_members cm1 ON cm1.chat_id = c.id AND cm1.user_id = :userId
-             JOIN chat_members cm2 ON cm2.chat_id = c.id AND cm2.user_id != :userId
-             JOIN users u
-             ON u.id = cm2.user_id
-               WHERE c.type = 'PERSONAL' AND LOWER(u.username) LIKE LOWER(CONCAT('%', :query, '%')))
-          ) AS combined
-      """,
-      nativeQuery = true
+            value = """
+            SELECT DISTINCT c
+            FROM Chat c
+            JOIN c.members cm1
+              ON cm1.user.id = :userId
+            LEFT JOIN c.members cm2
+              ON cm2.chat = c
+              AND cm2.user.id <> :userId
+            LEFT JOIN cm2.user u
+            WHERE
+              (
+                c.type = 'GROUP'
+                AND LOWER(c.name) LIKE LOWER(CONCAT('%', :query, '%'))
+              )
+              OR
+              (
+                c.type = 'PERSONAL'
+                AND u.id IS NOT NULL
+                AND LOWER(u.username) LIKE LOWER(CONCAT('%', :query, '%'))
+              )
+        """,
+            countQuery = """
+            SELECT COUNT(DISTINCT c)
+            FROM Chat c
+            JOIN c.members cm1
+              ON cm1.user.id = :userId
+            LEFT JOIN c.members cm2
+              ON cm2.chat = c
+              AND cm2.user.id <> :userId
+            LEFT JOIN cm2.user u
+            WHERE
+              (
+                c.type = 'GROUP'
+                AND LOWER(c.name) LIKE LOWER(CONCAT('%', :query, '%'))
+              )
+              OR
+              (
+                c.type = 'PERSONAL'
+                AND u.id IS NOT NULL
+                AND LOWER(u.username) LIKE LOWER(CONCAT('%', :query, '%'))
+              )
+        """
     )
-    Page<Chat> findChatsAmongAll(@Param("userId") Long userId,  @Param("query")  String query, Pageable pageable);
-
-
-
-
-//    @Query("SELECT c FROM Chat c " +
-//            "JOIN FETCH c.members m " +
-//            "WHERE EXISTS (SELECT cm FROM ChatMember cm WHERE cm.chat.id = c.id AND cm.user.id = :userId) " +
-//            "AND LOWER(c.name) LIKE LOWER(CONCAT('%', :query, '%'))")
-        //TODO сортировка остаётся при пустом поиске, по идее надо сортировать по времени получения сообщения
-//  "AND LOWER(c.name) LIKE LOWER(CONCAT('%', :query, '%')) ORDER BY LOWER(c.name)")
-//    List<Chat> findGroupChatsByName(@Param("userId") Long userId, @Param("query") String query);
-
-//    @Query("""
-//    SELECT c FROM Chat c
-//    JOIN ChatMember cm1 ON cm1.chat = c
-//    JOIN ChatMember cm2 ON cm2.chat = c
-//    JOIN User u ON u = cm2.user
-//    WHERE c.type = 'PERSONAL'
-//      AND cm1.user.id = :userId
-//      AND cm2.user.id != :userId
-//      AND LOWER(u.username) LIKE LOWER(CONCAT('%', :query, '%'))
-//    """)
-//    List<Chat> findPersonalChatsByOtherUsername(@Param("userId") Long userId, @Param("query") String query);
+    Page<Chat> findChatsAmongAll(
+            @Param("userId") Long userId,
+            @Param("query") String query,
+            Pageable pageable
+    );
 }

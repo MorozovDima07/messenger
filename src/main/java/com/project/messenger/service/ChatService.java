@@ -86,25 +86,6 @@ public class ChatService {
             };
         }
         return chats.map(chat -> mapToChatDTO(chat, userId, email));
-
-
-//        Long userId = userService.getUserIdByEmail(email);
-//
-//        List<Chat> chats;
-//
-//        if (type == null) {
-//            chats = Stream.concat(
-//                    chatRepository.findPersonalChatsByOtherUsername(userId, normalizedQuery).stream(),
-//                    chatRepository.findGroupChatsByName(userId, normalizedQuery).stream()
-//            ).toList();
-//        } else {
-//            chats = switch (type) {
-//                case PERSONAL -> chatRepository.findPersonalChatsByOtherUsername(userId, normalizedQuery);
-//                case GROUP -> chatRepository.findGroupChatsByName(userId, normalizedQuery);
-//            };
-//        }
-//
-//        return mapToChatDTOs(chats, userId, email);
     }
 
     @Transactional(readOnly = true)

@@ -1,4 +1,4 @@
-/*package com.project.messenger.config;
+package com.project.messenger.config;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -22,4 +22,4 @@ public class Application extends SpringBootServletInitializer {
     protected SpringApplicationBuilder configure(SpringApplicationBuilder builder) {
         return builder.sources(Application.class);
     }
-}*/
+}

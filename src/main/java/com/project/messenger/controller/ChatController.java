@@ -102,7 +102,7 @@ public class ChatController extends BaseController {
         return "new-chat";
     }
 
-    @PostMapping("/new/direct")
+    @PostMapping("chats/new/direct")
     public String createDirectChat(@Valid @ModelAttribute DirectChatDTO dto,
                                    BindingResult result,
                                    Authentication auth,
@@ -112,43 +112,41 @@ public class ChatController extends BaseController {
                     ? result.getFieldError("email").getDefaultMessage()
                     : "Ошибка валидации");
             model.addAttribute("userEmail", auth.getName());
-            return prepareNewChatModel(model);
+            return prepareNewChatModel(model, auth);
         }
 
         try {
             Chat chat = chatService.createDirectChat(auth.getName(), dto.getEmail());
-            return "redirect:/chats/" + chat.getId();
+            return "redirect:/direct?id=" + chat.getId();
         } catch (InvalidChatOperationException e) {
             model.addAttribute("error", e.getMessage());
-            return prepareNewChatModel(model);
+            return prepareNewChatModel(model, auth);
         }
     }
 
-    @PostMapping("/new/group")
+    @PostMapping("chats/new/group")
     public String createGroupChat(@Valid @ModelAttribute GroupChatDTO dto,
                                   BindingResult result,
                                   Authentication auth,
                                   Model model) {
         if (result.hasErrors()) {
             model.addAttribute("error", "Проверьте название группы и email участников");
-            return prepareNewChatModel(model);
+            return prepareNewChatModel(model, auth);
         }
 
         try {
             Chat chat = chatService.createGroupChat(dto.getName(), auth.getName(), dto.getEmails(), null);
-            return "redirect:/chats/" + chat.getId();
+            return "redirect:/group?id=" + chat.getId();
         } catch (InvalidChatOperationException e) {
             model.addAttribute("error", e.getMessage());
-            return prepareNewChatModel(model);
+            return prepareNewChatModel(model, auth);
         }
     }
 
-    private String prepareNewChatModel(Model model) {
+    private String prepareNewChatModel(Model model, Authentication auth) {
         model.addAttribute("DirectChatDTO", new DirectChatDTO());
         model.addAttribute("GroupChatDTO", new GroupChatDTO());
-        model.addAttribute("userEmail", model.containsAttribute("userEmail")
-                ? model.getAttribute("userEmail")
-                : "");
+        model.addAttribute("userEmail", auth.getName());
         return "new-chat";
     }
 

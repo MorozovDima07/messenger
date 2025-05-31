@@ -1,306 +1,220 @@
-window.messenger = window.messenger || {
-    getUserEmail: function() {
-        const meta = document.querySelector('meta[name="user-email"]');
-        const email = meta ? meta.getAttribute('content') : null;
-        console.log('getUserEmail вызван, результат:', email);
-        return email;
-    },
-    getCsrfToken: function() {
-        const meta = document.querySelector('meta[name="_csrf"]');
-        const token = meta ? meta.getAttribute('content') : null;
-        console.log('getCsrfToken вызван, результат:', token);
-        return token;
-    },
-    getCsrfHeader: function() {
-        const meta = document.querySelector('meta[name="_csrf_header"]');
-        const header = meta ? meta.getAttribute('content') : null;
-        console.log('getCsrfHeader вызван, результат:', header);
-        return header;
-    }
-};
+document.addEventListener('DOMContentLoaded', () => {
+    const chatsList = document.getElementById('chats-list');
+    const loading = document.getElementById('loading');
+    const sentinel = document.getElementById('sentinel');
+    let isLoading = false;
+    let hasReachedEnd = false;
+    const meta = document.querySelector('meta[name="_csrf"]');
+    const csrfToken = meta ? meta.getAttribute('content') : null;
 
-window.messenger.userEmail = window.messenger.getUserEmail();
-console.log('window.messenger.userEmail инициализирован:', window.messenger.userEmail);
-
-var notificationSocket = null;
-var notificationStompClient = null;
-var notificationSubscriptions = [];
-var reconnectAttemptsNotification = 0;
-var maxReconnectAttempts = 5;
-var reconnectDelay = 1000;
-let onlineUsers = new Set(JSON.parse(localStorage.getItem('onlineUsers') || '[]'));
-
-function updateOnlineStatus(email, isOnline) {
-    console.log(`Обновление статуса онлайна для ${email}: ${isOnline}`);
-    if (!isOnline && email === window.messenger.userEmail) {
-        console.log(`Игнорируем offline для текущего пользователя ${email}`);
+    if (!chatsList || !loading || !sentinel) {
+        console.log('Required elements not found: chatsList, loading, or sentinel');
         return;
     }
-    if (isOnline) {
-        onlineUsers.add(email);
-    } else {
-        onlineUsers.delete(email);
-    }
-    localStorage.setItem('onlineUsers', JSON.stringify(Array.from(onlineUsers)));
-    console.log('Текущие онлайн-пользователи:', Array.from(onlineUsers));
 
-    // Обновление индикатора рядом с именем
-    const nameIndicators = document.querySelectorAll(`.online-indicator-name[data-user-email="${email}"]`);
-    nameIndicators.forEach(indicator => {
-        indicator.style.display = isOnline ? 'inline-block' : 'none';
-        console.log(`${isOnline ? 'Показан' : 'Скрыт'} значок онлайна для имени ${email}`);
-    });
-}
+    let page = parseInt(chatsList.getAttribute('data-page')) || 0;
+    const size = parseInt(chatsList.getAttribute('data-size')) || 10;
+    const chatType = chatsList.getAttribute('data-chat-type') || '';
+    const totalPages = parseInt(chatsList.getAttribute('data-total-pages')) || 0;
+    const cache = new Map();
 
-function fetchOnlineUsers() {
-    const csrfToken = window.messenger.getCsrfToken();
-    const csrfHeader = window.messenger.getCsrfHeader();
-    if (!csrfToken || !csrfHeader) {
-        console.warn('CSRF-токен или заголовок не определены, пропускаем fetchOnlineUsers');
-        return;
-    }
-    fetch('/api/online-users', {
-        headers: {
-            [csrfHeader]: csrfToken
+    console.log(`Initialized: page=${page}, size=${size}, chatType=${chatType}, totalPages=${totalPages}`);
+
+    const observer = new IntersectionObserver((entries) => {
+        console.log(`Sentinel visibility: isIntersecting=${entries[0].isIntersecting}, intersectionRatio=${entries[0].intersectionRatio}`);
+        if (entries[0].isIntersecting && !isLoading && !hasReachedEnd) {
+            console.log('Sentinel intersected: loading more chats');
+            loadMoreChats();
         }
-    })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Ошибка загрузки списка онлайн-пользователей: ' + response.statusText);
-            }
-            return response.json();
-        })
-        .then(users => {
-            console.log('Получен список онлайн-пользователей:', users);
-            users.forEach(user => updateOnlineStatus(user.email, user.online));
-            if (window.messenger.userEmail) {
-                updateOnlineStatus(window.messenger.userEmail, true);
-            }
-        })
-        .catch(error => {
-            console.error('Ошибка получения онлайн-пользователей:', error);
-            Array.from(onlineUsers).forEach(email => updateOnlineStatus(email, true));
-            if (window.messenger.userEmail) {
-                updateOnlineStatus(window.messenger.userEmail, true);
-            }
-        });
-}
+    }, { threshold: 0.1, rootMargin: '50px' });
 
-function connectNotificationWebSocket() {
-    if (notificationSocket && notificationSocket.readyState === WebSocket.OPEN) {
-        console.log('Notification WebSocket уже открыт');
-        return;
-    }
-    let socket;
-    try {
-        socket = new SockJS('/ws', null, { withCredentials: true });
-        if (!socket) {
-            throw new Error('SockJS не инициализирован');
+    observer.observe(sentinel);
+
+    async function loadMoreChats() {
+        if (hasReachedEnd) {
+            console.log('Already reached end of pages, stopping load');
+            observer.unobserve(sentinel);
+            return;
         }
-    } catch (e) {
-        console.error('Ошибка создания SockJS:', e);
-        scheduleReconnect('notification');
-        return;
-    }
-    notificationSocket = socket;
-    notificationStompClient = Stomp.over(socket);
 
-    notificationStompClient.connect(
-        {},
-        function(frame) {
-            console.log('Notification STOMP Connected: ' + frame);
-            reconnectAttemptsNotification = 0;
+        const cacheKey = `${page + 1}-${size}-${chatType}`;
+        if (cache.has(cacheKey)) {
+            appendChats(cache.get(cacheKey));
+            page++;
+            if (!hasMorePages(cache.get(cacheKey))) {
+                hasReachedEnd = true;
+                observer.unobserve(sentinel);
+            }
+            return;
+        }
 
-            // Очищаем старые подписки
-            notificationSubscriptions.forEach(sub => {
-                try {
-                    sub.unsubscribe();
-                } catch (e) {
-                    console.warn('Ошибка отписки:', e);
+        isLoading = true;
+        loading.style.display = 'block';
+
+        try {
+            if (page + 1 >= totalPages) {
+                console.log(`Page ${page + 1} exceeds totalPages=${totalPages}, stopping load`);
+                hasReachedEnd = true;
+                observer.unobserve(sentinel);
+                return;
+            }
+
+            const url = `/chats/load?page=${page + 1}&size=${size}` + (chatType ? `&chatType=${chatType}` : '');
+            console.log(`Requesting chats: page=${page + 1}, size=${size}, chatType=${chatType}, url=${url}`);
+
+            const response = await fetch(url, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken
                 }
             });
-            notificationSubscriptions = [];
 
-            // Создаём новые подписки
-            notificationSubscriptions.push(
-                notificationStompClient.subscribe('/user/queue/notifications', function(message) {
-                    console.log('Получено уведомление: ', message.body);
-                    try {
-                        var notification = JSON.parse(message.body);
-                        showNotification(notification);
-                    } catch (error) {
-                        console.error('Ошибка парсинга уведомления: ', error);
-                    }
-                })
-            );
-            notificationSubscriptions.push(
-                notificationStompClient.subscribe('/topic/online-status', function(message) {
-                    console.log('Получен статус онлайна: ', message.body);
-                    try {
-                        var status = JSON.parse(message.body);
-                        updateOnlineStatus(status.email, status.online);
-                    } catch (error) {
-                        console.error('Ошибка парсинга статуса онлайна: ', error);
-                    }
-                })
-            );
+            console.log(`Received response for page ${page + 1}: status=${response.status}`);
+            if (!response.ok) throw new Error('Ошибка загрузки чатов');
 
-            // Отправляем heartbeat
-            setInterval(() => {
-                if (notificationStompClient && notificationStompClient.connected) {
-                    console.log('Отправка heartbeat');
-                    notificationStompClient.send('/app/heartbeat', {}, JSON.stringify({}));
+            const data = await response.json();
+            console.log(`Loaded ${data.content.length} chats for page ${page + 1}, totalElements=${data.totalElements}, totalPages=${data.totalPages}`);
+
+            cache.set(cacheKey, data);
+            if (data.content.length > 0) {
+                page++;
+                appendChats(data);
+                if (!hasMorePages(data)) {
+                    hasReachedEnd = true;
+                    observer.unobserve(sentinel);
                 }
-            }, 60000);
-        },
-        function(error) {
-            console.error('Ошибка WebSocket уведомлений:', error);
-            cleanupNotificationWebSocket();
-            scheduleReconnect('notification');
-        }
-    );
-
-    notificationSocket.onclose = function(event) {
-        console.log('Notification WebSocket закрыт: ', event);
-        cleanupNotificationWebSocket();
-        scheduleReconnect('notification');
-    };
-}
-
-function cleanupNotificationWebSocket() {
-    if (notificationSubscriptions.length > 0) {
-        notificationSubscriptions.forEach(sub => {
-            try {
-                sub.unsubscribe();
-            } catch (e) {
-                console.warn('Ошибка отписки:', e);
+            } else {
+                hasReachedEnd = true;
+                observer.unobserve(sentinel);
             }
+        } catch (error) {
+            console.error(`Ошибка при загрузке чатов на странице ${page + 1}:`, error);
+            loading.innerHTML = '<p class="error">Ошибка загрузки. Попробуйте снова.</p>';
+            setTimeout(() => {
+                loading.innerHTML = '<span class="spinner"></span> Загрузка...';
+                loading.style.display = 'none';
+                observer.observe(sentinel);
+            }, 3000);
+        } finally {
+            isLoading = false;
+            loading.style.display = 'none';
+            console.log(`Loading finished: isLoading=${isLoading}, page=${page}, hasReachedEnd=${hasReachedEnd}`);
+        }
+    }
+
+    function hasMorePages(data) {
+        if (data.last !== undefined) {
+            console.log(`hasMorePages: last=${data.last}, result=${!data.last}`);
+            return !data.last;
+        }
+        if (data.totalPages !== undefined && data.number !== undefined) {
+            const result = data.number + 1 < data.totalPages;
+            console.log(`hasMorePages: number=${data.number}, totalPages=${data.totalPages}, result=${result}`);
+            return result;
+        }
+        if (data.totalElements !== undefined && data.size !== undefined && data.number !== undefined) {
+            const result = (data.number + 1) * data.size < data.totalElements;
+            console.log(`hasMorePages: number=${data.number}, totalElements=${data.totalElements}, result=${result}`);
+            return result;
+        }
+        return false;
+    }
+
+    function appendChats(data) {
+        const sentinel = document.getElementById('sentinel');
+        data.content.forEach(chat => {
+            const li = document.createElement('li');
+            li.className = 'item-li';
+
+            const a = document.createElement('a');
+            if (chat.type === 'GROUP') {
+                a.href = `/group?id=${chat.id}&page=${page}&size=${size}`;
+            } else if (chat.type === 'PERSONAL') {
+                a.href = `/direct?id=${chat.id}&page=${page}&size=${size}`;
+            }
+            a.className = chat.active ? 'chats-item active-item' : 'chats-item';
+
+            const circleDiv = document.createElement('div');
+            circleDiv.className = 'circle';
+
+            const img = document.createElement('img');
+            img.loading = 'lazy';
+            if (chat.type === 'GROUP') {
+                img.src = '/static/icons/group.svg';
+                img.alt = 'Group Chat';
+            } else if (chat.type === 'PERSONAL') {
+                img.src = chat.avatar ? chat.avatar : '/static/icons/user.svg';
+                img.alt = chat.avatar ? 'Avatar' : 'Default Avatar';
+            }
+            circleDiv.appendChild(img);
+
+            const messInfoUl = document.createElement('ul');
+            messInfoUl.className = 'mess-info';
+
+            const guyMessLi = document.createElement('li');
+            guyMessLi.className = 'guy-mess';
+            guyMessLi.textContent = chat.name;
+            messInfoUl.appendChild(guyMessLi);
+
+            const lastMessLi = document.createElement('li');
+            lastMessLi.className = 'last-mess';
+            lastMessLi.textContent = chat.lastMessage || '';
+            messInfoUl.appendChild(lastMessLi);
+
+            const dateLastMessDiv = document.createElement('div');
+            dateLastMessDiv.className = 'date-last-mess';
+
+            if (chat.unreadCount > 0) {
+                const circleUnread = document.createElement('div');
+                circleUnread.className = 'circleUnreadCount';
+                circleUnread.textContent = chat.unreadCount;
+                dateLastMessDiv.appendChild(circleUnread);
+            }
+
+            const dateP = document.createElement('p');
+            dateP.textContent = chat.lastMessageDate || '';
+            dateLastMessDiv.appendChild(dateP);
+
+            a.appendChild(circleDiv);
+            a.appendChild(messInfoUl);
+            a.appendChild(dateLastMessDiv);
+            li.appendChild(a);
+            chatsList.insertBefore(li, sentinel);
         });
-        notificationSubscriptions = [];
     }
-    if (notificationStompClient) {
-        try {
-            notificationStompClient.disconnect();
-        } catch (e) {
-            console.warn('Ошибка отключения STOMP:', e);
-        }
-        notificationStompClient = null;
-    }
-    notificationSocket = null;
-}
 
-function scheduleReconnect(type) {
-    const attempts = type === 'chat' ? reconnectAttemptsChat : reconnectAttemptsNotification;
-    if (attempts >= maxReconnectAttempts) {
-        console.error(`Достигнуто максимальное количество попыток переподключения для ${type} WebSocket`);
-        alert('Соединение потеряно. Пожалуйста, обновите страницу.');
-        return;
+    function debounce(func, wait) {
+        let timeout;
+        return function (...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
     }
-    const delay = reconnectDelay * Math.pow(2, attempts);
-    console.log(`Планируется попытка переподключения ${attempts + 1} для ${type} WebSocket через ${delay}мс`);
-    setTimeout(() => {
-        if (type === 'chat') {
-            reconnectAttemptsChat++;
-            connectChatWebSocket();
-        } else {
-            reconnectAttemptsNotification++;
-            connectNotificationWebSocket();
-        }
-    }, delay);
-}
 
-function showNotification(notification) {
-    console.log('Отображение уведомления: ', notification);
-    const chatItem = document.querySelector(`#chats-list li[data-chat-id="${notification.chatId}"]`);
-    if (!chatItem) {
-        console.warn(`Чат с chatId ${notification.chatId} не найден в списке`);
-        return;
-    }
-    const toast = document.createElement('div');
-    toast.className = 'notification-toast';
-    const senderUsername = notification.senderUsername || 'Пользователь';
-    let messageText = notification.message || notification.content || 'Новое сообщение';
-    if (notification.files && Array.isArray(notification.files) && notification.files.length > 0) {
-        const fileNames = notification.files.map(file => `[Файл: ${file.fileName || 'Неизвестный файл'}]`).join(' ');
-        messageText = messageText ? `${messageText} ${fileNames}` : fileNames;
-    }
-    toast.innerHTML = `
-        <div class="content">
-            ${senderUsername}: ${messageText}
-        </div>
-        <span class="close" onclick="this.parentElement.classList.remove('show'); setTimeout(() => this.parentElement.remove(), 300);">×</span>
-    `;
-    document.body.appendChild(toast);
-    setTimeout(() => {
-        toast.className += ' show';
-    }, 100);
-    setTimeout(() => {
-        toast.className = toast.className.replace(' show', '');
-        setTimeout(() => {
-            toast.remove();
-        }, 300);
-    }, 5000);
-    chatItem.style.backgroundColor = '#e0f7fa';
-    setTimeout(() => {
-        chatItem.style.backgroundColor = '';
-    }, 5000);
-    const lastMessageElement = chatItem.querySelector('.last-mess');
-    if (lastMessageElement) {
-        lastMessageElement.textContent = messageText.length > 50 ? messageText.substring(0, 47) + '...' : messageText;
-    }
-    // Обновление счётчика непрочитанных сообщений
-    if (notification.senderEmail !== window.messenger.userEmail && notification.chatId != chatId) {
-        const unreadCountElement = chatItem.querySelector('.circleUnreadCount');
-        let currentUnreadCount = 0;
-        if (unreadCountElement) {
-            currentUnreadCount = parseInt(unreadCountElement.textContent) || 0;
+    function continueLoadingIfNeeded() {
+        if (isLoading || hasReachedEnd) {
+            console.log(`Skipping load: isLoading=${isLoading}, hasReachedEnd=${hasReachedEnd}`);
+            return;
         }
-        currentUnreadCount += 1;
-        if (unreadCountElement) {
-            unreadCountElement.textContent = currentUnreadCount;
-            unreadCountElement.style.display = 'block';
-        } else {
-            const dateLastMess = chatItem.querySelector('.date-last-mess');
-            if (dateLastMess) {
-                const newUnreadCountElement = document.createElement('div');
-                newUnreadCountElement.className = 'circleUnreadCount';
-                newUnreadCountElement.textContent = currentUnreadCount;
-                // Вставляем перед <p> в .date-last-mess, как в шаблоне
-                const dateParagraph = dateLastMess.querySelector('p');
-                if (dateParagraph) {
-                    dateLastMess.insertBefore(newUnreadCountElement, dateParagraph);
-                } else {
-                    dateLastMess.appendChild(newUnreadCountElement);
-                }
-            }
+
+        const scrollTop = chatsList.scrollTop;
+        const scrollHeight = chatsList.scrollHeight;
+        const clientHeight = chatsList.clientHeight;
+        const hasMore = hasMorePages({ number: page, totalPages: totalPages }) && page + 1 < totalPages;
+
+        console.log(`Checking if more loading needed: scrollTop=${scrollTop}, scrollHeight=${scrollHeight}, clientHeight=${clientHeight}, hasMore=${hasMore}`);
+
+        if (scrollTop > 0 && scrollHeight - (scrollTop + clientHeight) < 100 && hasMore) {
+            console.log('Approaching end of scroll, continuing to load more chats');
+            loadMoreChats();
         }
-        console.log(`Увеличен unreadCount для chatId ${notification.chatId} до ${currentUnreadCount}`);
-    } else {
-        console.log('Счётчик не обновлён: ',
-            notification.senderEmail === window.messenger.userEmail
-                ? 'Сообщение от текущего пользователя'
-                : 'Уведомление для активного чата');
     }
-}
 
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('Попытка подключения WebSocket уведомлений с userEmail:', window.messenger.userEmail);
-    if (window.messenger.userEmail) {
-        connectNotificationWebSocket();
-        fetchOnlineUsers();
-    } else {
-        console.warn('userEmail не найден, WebSocket уведомлений не подключен');
-        setTimeout(() => {
-            window.messenger.userEmail = window.messenger.getUserEmail();
-            console.log('Повторная инициализация userEmail:', window.messenger.userEmail);
-            if (window.messenger.userEmail) {
-                connectNotificationWebSocket();
-                fetchOnlineUsers();
-            }
-        }, 1000);
+    const debouncedContinueLoading = debounce(continueLoadingIfNeeded, 200);
+    chatsList.addEventListener('scroll', debouncedContinueLoading);
+
+    if (document.body.scrollHeight <= window.innerHeight + window.scrollY + 100 && page === 0) {
+        console.log('Initial load triggered due to short list');
+        loadMoreChats();
     }
-});
-
-window.addEventListener('beforeunload', () => {
-    cleanupNotificationWebSocket();
 });

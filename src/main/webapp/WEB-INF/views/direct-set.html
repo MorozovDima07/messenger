@@ -425,6 +425,8 @@
             alert('Ошибка: CSRF-токен не доступен');
             return;
         }
+
+
         let fileIds = [];
         let messageId = null;
         let tempMessageId = Date.now().toString();
@@ -788,6 +790,7 @@
     }
 
     document.addEventListener('DOMContentLoaded', function() {
+        connectChatWebSocket();
         bindFormListener();
         bindChatItemListeners();
         const messagesList = document.getElementById('messages');

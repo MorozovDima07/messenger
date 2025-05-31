@@ -82,7 +82,10 @@
         </div>
         <div class="add-set">
             <div class="ava ava-set">
-                <div class="circleBigAvatar"><img th:src="@{/static/icons/user.svg}"/></div>
+                <div class="circleBigAvatar">
+                    <img th:if="${chat.avatarPath != null}" th:src="@{${chat.avatarPath}}" alt="Avatar"/>
+                    <img th:unless="${chat.avatarPath != null}" th:src="@{/static/icons/user.svg}" alt="Default Avatar"/>
+                </div>
             </div>
             <div class="cont-info cont-info-set">
                 <li class="cont-name" th:text="${chat.name}"></li>

@@ -27,8 +27,8 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     Page<Message> findByChatIdOrderByTimestampDesc(@Param("chatId") Long chatId, Pageable pageable);
     @Modifying
     @Transactional
-    @Query(value = "INSERT INTO message_read_by (message_id, user_id) " +
-            "SELECT m.id, :userId FROM message m WHERE m.chat_id = :chatId " +
+    @Query(value = "INSERT INTO message_read (message_id, user_id) " +
+            "SELECT m.id, :userId FROM messages m WHERE m.chat_id = :chatId " +
             "ON CONFLICT DO NOTHING", nativeQuery = true)
     void markMessagesAsReadByUser(@Param("chatId") Long chatId, @Param("userId") Long userId);
 }

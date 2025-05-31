@@ -19,7 +19,7 @@
         <thymeleaf.version>3.1.2.RELEASE</thymeleaf.version>
         <jakarta.servlet.version>6.0.0</jakarta.servlet.version>
         <hikari.version>5.1.0</hikari.version>
-        <tomcat.webapps.dir>C:\Java\apache-tomcat-10.1.33\webapps</tomcat.webapps.dir>
+        <tomcat.webapps.dir>C:\Java\apache-tomcat-10.1.29\webapps</tomcat.webapps.dir>
     </properties>
 
     <dependencies>
@@ -168,7 +168,7 @@
             <version>2.15.2</version>
         </dependency>
 
-        <!--Hot reboot
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
@@ -187,7 +187,7 @@
             <version>3.3.4</version>
             <scope>runtime</scope>
             <optional>true</optional>
-        </dependency>-->
+        </dependency>
     </dependencies>
 
     <build>
@@ -218,12 +218,12 @@
                         </goals>
                         <configuration>
                             <target>
-                                <exec executable="C:\Java\apache-tomcat-10.1.33\bin\shutdown.bat" failonerror="false"/>
+                                <exec executable="C:\Java\apache-tomcat-10.1.29\bin\shutdown.bat" failonerror="false"/>
                                 <delete dir="${tomcat.webapps.dir}/ROOT" failonerror="false"/>
                                 <delete file="${tomcat.webapps.dir}/ROOT.war" failonerror="false"/>
                                 <copy file="${project.build.directory}/${project.build.finalName}.war"
                                       tofile="${tomcat.webapps.dir}/ROOT.war"/>
-                                <exec executable="C:\Java\apache-tomcat-10.1.33\bin\startup.bat" failonerror="false"/>
+                                <exec executable="C:\Java\apache-tomcat-10.1.29\bin\startup.bat" failonerror="false"/>
                             </target>
                         </configuration>
                     </execution>

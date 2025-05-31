@@ -79,7 +79,7 @@ public class GlobalExceptionHandler {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Произошла ошибка на сервере: " + ex.getMessage());
         }
-        model.addAttribute("error", "Произошла непредвиденная ошибка. Пожалуйста, попробуйте позже.");
+        model.addAttribute("error", "Произошла непредвиденная ошибка: " + ex.getMessage());
         return "error";
     }
 

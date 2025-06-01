@@ -226,7 +226,7 @@ public class UserService implements UserServiceInterface {
                 .orElseThrow(() -> new UserNotFoundException("Пользователь для блокировки не найден"));
 
         if (blockedUserRepository.existsByUserIdAndBlockedUserId(user.getId(), blockedUserId)) {
-            throw new IllegalStateException("Пользователь уже заблокирован");
+            return;
         }
 
         BlockedUser blocked = new BlockedUser();

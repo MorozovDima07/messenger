@@ -1,9 +1,11 @@
 package com.project.messenger.service;
 
+import com.project.messenger.exception.AccessDeniedException;
 import com.project.messenger.exception.MessageNotFoundException;
 import com.project.messenger.model.*;
 import com.project.messenger.model.dto.NotificationDTO;
 import com.project.messenger.model.dto.WebSocketMessageDTO;
+import com.project.messenger.repository.BlockedUserRepository;
 import com.project.messenger.repository.MessageRepository;
 import com.project.messenger.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +22,9 @@ public class MessageService {
 
     @Autowired
     private MessageRepository messageRepository;
+
+    @Autowired
+    private BlockedUserRepository blockedUserRepository;
 
     @Autowired
     private ChatService chatService;
@@ -117,6 +122,9 @@ public class MessageService {
         if (chat.getType() == ChatType.PERSONAL) {
             chat.getMembers().forEach(member -> {
                 String recipientEmail = member.getUser().getEmail();
+                if (blockedUserRepository.existsByUserIdAndBlockedUserId(member.getUser().getId(), sender.getId())) {
+                    throw new AccessDeniedException("Вас заблокировали");
+                }
                 simpMessagingTemplate.convertAndSendToUser(
                         recipientEmail,
                         "/queue/private",

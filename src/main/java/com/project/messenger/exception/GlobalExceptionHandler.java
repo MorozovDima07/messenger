@@ -3,8 +3,6 @@ package com.project.messenger.exception;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -98,10 +96,5 @@ public class GlobalExceptionHandler {
         }
         model.addAttribute("error", "Произошла непредвиденная ошибка: " + ex.getMessage());
         return "error";
-    }
-
-    private String getCurrentUserEmail() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        return auth != null ? auth.getName() : null;
     }
 }

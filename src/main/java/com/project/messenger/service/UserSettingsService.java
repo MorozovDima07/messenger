@@ -7,7 +7,6 @@ import com.project.messenger.model.UserSettings;
 import com.project.messenger.repository.UserRepository;
 import com.project.messenger.repository.UserSettingsRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 @Service

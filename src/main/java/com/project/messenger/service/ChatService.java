@@ -11,7 +11,6 @@ import org.imgscalr.Scalr;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.*;
-import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -24,7 +23,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @Service
 public class ChatService {
@@ -86,16 +84,6 @@ public class ChatService {
             };
         }
         return chats.map(chat -> mapToChatDTO(chat, userId, email));
-    }
-
-    @Transactional(readOnly = true)
-    public Chat findByInviteLink(String link, String userEmail) {
-        Chat chat = chatRepository.findByInviteLink(link)
-                .orElseThrow(() -> new ChatNotFoundException(0L));
-        if (!chatMemberRepository.existsByChatIdAndUserEmail(chat.getId(), userEmail)) {
-            throw new AccessDeniedException("У вас нет доступа к этому чату");
-        }
-        return chat;
     }
 
     @Transactional
@@ -269,7 +257,7 @@ public class ChatService {
             try {
                 User user = userService.findByEmail(email.trim());
                 if (user.getId().equals(creator.getId())) {
-                    continue; // Пропускаем создателя
+                    continue;
                 }
                 if (userService.isBlocked(creator.getId(), user.getId())) {
                     errors.add("Пользователь с email " + email + " заблокирован");

@@ -104,9 +104,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const a = document.createElement('a');
         if (chat.type === 'GROUP') {
-            a.href = `/group?id=${chat.id}&page=${page}&size=${size}`;
+            a.href = `/group?id=${chat.id}`;
         } else if (chat.type === 'PERSONAL') {
-            a.href = `/direct?id=${chat.id}&page=${page}&size=${size}`;
+            a.href = `/direct?id=${chat.id}`;
         }
         a.className = 'chats-item' + (chat.active ? ' active-item' : '');
 

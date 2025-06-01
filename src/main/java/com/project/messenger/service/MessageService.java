@@ -206,11 +206,6 @@ public class MessageService {
     }
 
     @Transactional
-    public Message save(Message message) {
-        return messageRepository.save(message);
-    }
-
-    @Transactional
     public Optional<Message> findById(Long id) {
         return messageRepository.findById(id);
     }

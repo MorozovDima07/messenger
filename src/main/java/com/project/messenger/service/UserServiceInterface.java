@@ -10,6 +10,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -18,10 +19,12 @@ public interface UserServiceInterface extends UserDetailsService {
     User findByEmail(String email);
     User findById(Long id);
     void updateUser(User user);
+    void updateUsername(String email, String name);
+    User updateAvatarAndGetUser(String email, MultipartFile file);
     void updateUserSettings(Long userId, NotificationLevel personalChatNotifications,
                             NotificationLevel groupChatNotifications, String theme);
     UserSettings getUserSettings(Long userId);
-    void blockUser(Long userId, Long blockedUserId);
+    void blockUser(String userEmail, Long chatId);
     void unblockUser(Long userId, Long blockedUserId);
     Page<BlockedUserDTO> getBlockedUsers(Long userId, Pageable pageable);
     boolean isBlocked(Long userId, Long targetUserId);

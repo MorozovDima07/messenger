@@ -1,10 +1,13 @@
 package com.project.messenger.service;
 
+import com.project.messenger.exception.UserNotFoundException;
 import com.project.messenger.model.NotificationLevel;
 import com.project.messenger.model.User;
 import com.project.messenger.model.UserSettings;
+import com.project.messenger.repository.UserRepository;
 import com.project.messenger.repository.UserSettingsRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -13,19 +16,28 @@ public class UserSettingsService {
     @Autowired
     private UserSettingsRepository userSettingsRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
     public UserSettings getUserSettings(User user) {
         return userSettingsRepository.findByUser(user)
                 .orElseGet(() -> createDefaultSettings(user));
     }
 
-    public void updateNotificationSettings(User user, NotificationLevel personalChatNotifications, NotificationLevel groupChatNotifications) {
+    public void updateNotificationSettings(String email, boolean personalChatNotifications, boolean groupChatNotifications) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UserNotFoundException("Пользователь не найден"));
         UserSettings settings = getUserSettings(user);
-        settings.setPersonalChatNotifications(personalChatNotifications);
-        settings.setGroupChatNotifications(groupChatNotifications);
+        NotificationLevel personalLevel = personalChatNotifications ? NotificationLevel.ALL : NotificationLevel.NONE;
+        NotificationLevel groupLevel = groupChatNotifications ? NotificationLevel.ALL : NotificationLevel.NONE;
+        settings.setPersonalChatNotifications(personalLevel);
+        settings.setGroupChatNotifications(groupLevel);
         userSettingsRepository.save(settings);
     }
 
-    public void resetNotificationSettings(User user) {
+    public void resetNotificationSettings(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UserNotFoundException("Пользователь не найден"));
         UserSettings settings = getUserSettings(user);
         settings.setPersonalChatNotifications(NotificationLevel.ALL);
         settings.setGroupChatNotifications(NotificationLevel.ALL);

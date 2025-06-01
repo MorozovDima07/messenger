@@ -1,5 +1,6 @@
 package com.project.messenger.controller;
 
+import com.project.messenger.exception.MessageNotFoundException;
 import com.project.messenger.model.*;
 import com.project.messenger.model.dto.NotificationDTO;
 import com.project.messenger.model.dto.OnlineStatusDTO;
@@ -9,7 +10,6 @@ import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -59,7 +59,6 @@ public class WebSocketController {
     }
 
     private void broadcastOnlineStatus(String email, boolean isOnline) {
-        System.out.println("Отправка статуса для " + email + ": online=" + isOnline + ", activeUsers=" + activeUsers);
         OnlineStatusDTO statusDTO = new OnlineStatusDTO();
         statusDTO.setEmail(email);
         statusDTO.setOnline(isOnline);
@@ -71,9 +70,7 @@ public class WebSocketController {
         Principal principal = event.getUser();
         if (principal != null) {
             String email = principal.getName();
-            System.out.println("Пользователь " + email + " подключился к WebSocket");
             activeUsers.put(email, System.currentTimeMillis());
-            System.out.println("activeUsers после connect: " + activeUsers);
             broadcastOnlineStatus(email, true);
         }
     }
@@ -82,43 +79,36 @@ public class WebSocketController {
     public void handleWebSocketDisconnect(SessionDisconnectEvent event) {
         String email = event.getUser() != null ? event.getUser().getName() : null;
         if (email != null) {
-            System.out.println("Пользователь " + email + " отключился от WebSocket");
             activeUsers.remove(email);
             activeChats.remove(email);
-            System.out.println("activeUsers после disconnect: " + activeUsers);
             broadcastOnlineStatus(email, false);
         }
     }
 
-    @Scheduled(fixedRate = 60000) // Каждую минуту
+    @Scheduled(fixedRate = 60000)
     public void cleanupInactiveUsers() {
         long currentTime = System.currentTimeMillis();
         activeUsers.entrySet().removeIf(entry -> {
             if (currentTime - entry.getValue() > INACTIVITY_THRESHOLD) {
                 String email = entry.getKey();
-                System.out.println("Удаление неактивного пользователя: " + email);
                 activeChats.remove(email);
                 broadcastOnlineStatus(email, false);
                 return true;
             }
             return false;
         });
-        System.out.println("Очистка неактивных пользователей, activeUsers: " + activeUsers);
     }
 
     @MessageMapping("/chat/{chatId}/join")
     public void joinChat(@DestinationVariable("chatId") Long chatId, Principal principal) {
         String email = principal.getName();
-        System.out.println("Пользователь " + email + " присоединился к чату: " + chatId);
         activeChats.computeIfAbsent(email, k -> new HashSet<>()).add(chatId);
         activeUsers.put(email, System.currentTimeMillis());
-        System.out.println("activeChats после join: " + activeChats + ", activeUsers: " + activeUsers);
     }
 
     @MessageMapping("/chat/{chatId}/leave")
     public void leaveChat(@DestinationVariable("chatId") Long chatId, Principal principal) {
         String email = principal.getName();
-        System.out.println("Пользователь " + email + " покинул чат: " + chatId);
         Set<Long> userChats = activeChats.get(email);
         if (userChats != null) {
             userChats.remove(chatId);
@@ -127,7 +117,6 @@ public class WebSocketController {
             }
         }
         activeUsers.put(email, System.currentTimeMillis());
-        System.out.println("activeChats после leave: " + activeChats + ", activeUsers: " + activeUsers);
     }
 
     @MessageMapping("/chat/{chatId}")
@@ -135,8 +124,6 @@ public class WebSocketController {
     public void sendMessage(@DestinationVariable("chatId") Long chatId,
                             WebSocketMessageDTO messageDTO,
                             Principal principal) {
-        System.out.println("Получено сообщение для chatId: " + chatId + ", от пользователя: " + principal.getName());
-
         String email = principal.getName();
         User sender = userService.findByEmail(email);
         Chat chat = chatService.getChatWithMembers(chatId, email);
@@ -144,14 +131,13 @@ public class WebSocketController {
         boolean hasContent = messageDTO.getContent() != null && !messageDTO.getContent().trim().isEmpty();
         boolean hasFiles = messageDTO.getFiles() != null && !messageDTO.getFiles().isEmpty();
         if (!hasContent && !hasFiles) {
-            System.out.println("Сообщение пустое, игнорируем");
             return;
         }
 
         Message message;
         if (messageDTO.getMessageId() != null) {
             message = messageService.findById(messageDTO.getMessageId())
-                    .orElseThrow(() -> new IllegalArgumentException("Сообщение с ID " + messageDTO.getMessageId() + " не найдено"));
+                    .orElseThrow(() -> new MessageNotFoundException("Сообщение с ID " + messageDTO.getMessageId() + " не найдено"));
         } else {
             message = new Message();
             message.setChat(chat);
@@ -173,14 +159,7 @@ public class WebSocketController {
         if (hasFiles) {
             List<File> files = messageDTO.getFiles().stream()
                     .filter(fileAttachment -> fileAttachment.getId() != null)
-                    .map(fileAttachment -> {
-                        File file = fileService.getFile(fileAttachment.getId());
-                        if (file == null) {
-                            System.err.println("Файл с ID " + fileAttachment.getId() + " не найден");
-                            return null;
-                        }
-                        return file;
-                    })
+                    .map(fileAttachment -> fileService.getFile(fileAttachment.getId()))
                     .filter(Objects::nonNull)
                     .collect(Collectors.toList());
 
@@ -188,9 +167,6 @@ public class WebSocketController {
                 if (file.getMessage() == null) {
                     file.setMessage(message);
                     fileService.save(file);
-                    System.out.println("Привязан файл: id=" + file.getId() + ", name=" + file.getFileName());
-                } else if (!file.getMessage().equals(message)) {
-                    System.err.println("Файл уже привязан к другому сообщению: id=" + file.getId());
                 }
             }
 
@@ -213,7 +189,6 @@ public class WebSocketController {
             WebSocketMessageDTO.FileAttachment attachment = new WebSocketMessageDTO.FileAttachment();
             attachment.setId(file.getId());
             attachment.setFileName(file.getFileName());
-            System.out.println("Sending file: " + file.getFileName() + ", contentType: " + file.getContentType());
             attachment.setContentType(file.getContentType());
             return attachment;
         }).collect(Collectors.toList())
@@ -222,7 +197,6 @@ public class WebSocketController {
         if (chat.getType() == ChatType.PERSONAL) {
             chat.getMembers().forEach(member -> {
                 String recipientEmail = member.getUser().getEmail();
-                System.out.println("Отправка сообщения на /queue/private для " + recipientEmail);
                 simpMessagingTemplate.convertAndSendToUser(
                         recipientEmail,
                         "/queue/private",
@@ -230,7 +204,6 @@ public class WebSocketController {
                 );
             });
         } else {
-            System.out.println("Отправка сообщения на /topic/chat/" + chatId);
             simpMessagingTemplate.convertAndSend("/topic/chat/" + chatId, response);
         }
 
@@ -256,11 +229,9 @@ public class WebSocketController {
             String recipientEmail = member.getUser().getEmail();
             Set<Long> activeChatIds = activeChats.get(recipientEmail);
             NotificationLevel notificationLevel = member.getNotifications();
-            System.out.println("Проверка для " + recipientEmail + ": activeChatIds=" + activeChatIds + ", chatId=" + chatId);
             if (!recipientEmail.equals(email) &&
                     notificationLevel == NotificationLevel.ALL &&
                     (activeChatIds == null || !activeChatIds.contains(chatId))) {
-                System.out.println("Отправка уведомления для " + recipientEmail);
                 simpMessagingTemplate.convertAndSendToUser(recipientEmail, "/queue/notifications", notification);
             } else {
                 System.out.println("Уведомление не отправлено для " + recipientEmail + ": " +
@@ -277,8 +248,6 @@ public class WebSocketController {
     @MessageMapping("/heartbeat")
     public void heartbeat(Principal principal) {
         String email = principal.getName();
-        System.out.println("Получен heartbeat от " + email);
         activeUsers.put(email, System.currentTimeMillis());
-        System.out.println("activeUsers после heartbeat: " + activeUsers);
     }
 }

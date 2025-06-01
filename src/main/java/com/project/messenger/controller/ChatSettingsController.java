@@ -1,5 +1,6 @@
 package com.project.messenger.controller;
 
+import com.project.messenger.exception.InvalidChatOperationException;
 import com.project.messenger.model.*;
 import com.project.messenger.model.dto.AddMembersDTO;
 import com.project.messenger.model.dto.ChatMemberDTO;
@@ -12,8 +13,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
@@ -35,9 +34,6 @@ public class ChatSettingsController extends BaseController{
 
     @Autowired
     private FileService fileService;
-
-    @Autowired
-    private MessageService messageService;
 
     @Autowired
     private UserServiceInterface userService;
@@ -69,38 +65,7 @@ public class ChatSettingsController extends BaseController{
             @RequestParam(name = "size", defaultValue = "10") int size,
             Model model,
             Authentication auth) {
-        model.addAttribute("chatType", ChatType.PERSONAL);
-        User currentUser = userService.findByEmail(auth.getName());
-        model.addAttribute("userEmail", auth.getName());
-
-        Chat chat = chatService.getChat(id, auth.getName());
-        model.addAttribute("chat", chat);
-
-        Page<MessageDTO> messagePage = chatService.getMessages(id, currentUser.getId(), page, size);
-        List<MessageDTO> reversedMessages = new ArrayList<>(messagePage.getContent());
-        Collections.reverse(reversedMessages);
-        model.addAttribute("messages", reversedMessages);
-        model.addAttribute("currentPage", messagePage.getNumber());
-        model.addAttribute("totalPages", messagePage.getTotalPages());
-
-        ChatMember currentMember = chatService.getChatMember(id, auth.getName());
-        model.addAttribute("notifications", currentMember.getNotifications());
-        User contact = chatService.getChatContact(id, auth.getName());
-        model.addAttribute("contact", contact);
-
-        return "direct-set";
-    }
-
-    @PostMapping("/direct/{id}/block")
-    public String blockUser(@PathVariable("id") Long id, Authentication auth) {
-        Chat chat = chatService.getChat(id, auth.getName());
-        Long blockedUserId = chat.getMembers().stream()
-                .filter(m -> !m.getUser().getEmail().equals(auth.getName()))
-                .findFirst()
-                .map(m -> m.getUser().getId())
-                .orElseThrow(() -> new IllegalStateException("Пользователь не найден"));
-        userService.blockUser(userService.findByEmail(auth.getName()).getId(), blockedUserId);
-        return "redirect:/chats";
+        return viewChatSettings(id, size, model, auth);
     }
 
     @GetMapping("/group-set")
@@ -109,22 +74,33 @@ public class ChatSettingsController extends BaseController{
                                 @RequestParam(name = "size", defaultValue = "10") int size,
                                 Model model,
                                 Authentication auth) {
-        User currentUser = userService.findByEmail(auth.getName());
-        Chat chat = chatService.getChat(id, auth.getName());
-        ChatMember currentMember = chatService.getChatMember(id, currentUser.getEmail());
+        return viewChatSettings(id, size, model, auth);
+    }
 
+    private String viewChatSettings(Long id, int size, Model model, Authentication auth) {
+        User currentUser = userService.findByEmail(auth.getName());
+        model.addAttribute("userEmail", auth.getName());
+        Chat chat = chatService.getChat(id, auth.getName());
         model.addAttribute("chat", chat);
-        model.addAttribute("currentMember", currentMember);
         Page<MessageDTO> messagePage = chatService.getMessages(id, currentUser.getId(), 0, size);
         List<MessageDTO> reversedMessages = new ArrayList<>(messagePage.getContent());
         Collections.reverse(reversedMessages);
         model.addAttribute("messages", reversedMessages);
-        model.addAttribute("currentPage", messagePage.getNumber());
-        model.addAttribute("totalPages", messagePage.getTotalPages());
-        model.addAttribute("chatType", ChatType.GROUP);
-        model.addAttribute("userEmail", auth.getName());
+        ChatMember currentMember = chatService.getChatMember(id, auth.getName());
+        if(chat.getType() == ChatType.PERSONAL){
+            model.addAttribute("notifications", currentMember.getNotifications());
+            User contact = chatService.getChatContact(id, auth.getName());
+            model.addAttribute("contact", contact);
+        } else if (chat.getType() == ChatType.GROUP){
+            model.addAttribute("currentMember", currentMember);
+        }
+        return chat.getType() == ChatType.PERSONAL ? "direct-set" : "group-set";
+    }
 
-        return "group-set";
+    @PostMapping("/direct/{id}/block")
+    public String blockUser(@PathVariable("id") Long id, Authentication auth) {
+        userService.blockUser(auth.getName(), id);
+        return "redirect:/chats";
     }
 
     @GetMapping("/group/{id}/edit")
@@ -135,7 +111,6 @@ public class ChatSettingsController extends BaseController{
                               Authentication auth) {
         Chat chat = chatService.getChat(id, auth.getName());
         model.addAttribute("chat", chat);
-        model.addAttribute("chatType", ChatType.GROUP);
         model.addAttribute("userEmail", auth.getName());
         return "group-edit";
     }
@@ -146,28 +121,23 @@ public class ChatSettingsController extends BaseController{
                             @RequestParam(value = "avatar", required = false) MultipartFile avatar,
                             Authentication auth,
                             Model model) throws IOException {
-        Chat chat = chatService.getChat(id, auth.getName());
-
         if (avatar != null && !avatar.isEmpty()) {
             String contentType = avatar.getContentType();
+            Chat chat = chatService.getChat(id, auth.getName());
+            model.addAttribute("chat", chat);
             if (contentType != null && contentType.startsWith("image/")) {
-                if (avatar.getSize() <= 5 * 1024 * 1024) { // Максимум 5 МБ
+                if (avatar.getSize() <= 5 * 1024 * 1024) {
                     chatService.updateChatAvatar(id, avatar, auth.getName());
                 } else {
-                    model.addAttribute("chat", chat);
-                    model.addAttribute("chatType", ChatType.GROUP);
                     model.addAttribute("error", "Файл слишком большой (максимум 5 МБ)");
                     return "group-edit";
                 }
             } else {
-                model.addAttribute("chat", chat);
-                model.addAttribute("chatType", ChatType.GROUP);
                 model.addAttribute("error", "Допустимы только изображения");
                 return "group-edit";
             }
         }
 
-        // Обновление названия
         chatService.updateChatName(id, name, auth.getName());
         return "redirect:/group-set?id=" + id;
     }
@@ -177,55 +147,23 @@ public class ChatSettingsController extends BaseController{
     public String addMembers(@PathVariable("id") Long id, @Valid @ModelAttribute AddMembersDTO dto,
                              BindingResult result, Authentication auth, Model model) {
         if (result.hasErrors()) {
-            model.addAttribute("error", "Проверьте email участников");
             Chat chat = chatService.getChat(id, auth.getName());
             model.addAttribute("chat", chat);
-            model.addAttribute("chatType", ChatType.GROUP);
             model.addAttribute("currentMember", chatService.getChatMember(id, auth.getName()));
+            model.addAttribute("error", "Проверьте email участников");
             return "group-set";
         }
-        User currentUser = userService.findByEmail(auth.getName());
-        Chat chat = chatService.getChat(id, auth.getName());
-        ChatMember currentMember = chatService.getChatMember(id, currentUser.getEmail());
 
-        List<String> errors = new ArrayList<>();
-        List<Long> userIds = new ArrayList<>();
-
-        for (String email : dto.getEmails()) {
-            if (email == null || email.trim().isEmpty()) {
-                continue;
-            }
-            try {
-                User user = userService.findByEmail(email.trim());
-                if (chatService.existsByChatIdAndUserId(id, user.getId())) {
-                    errors.add("Пользователь " + email + " уже в чате");
-                } else if (userService.isBlocked(currentUser.getId(), user.getId())) {
-                    errors.add("Пользователь " + email + " заблокирован");
-                } else {
-                    userIds.add(user.getId());
-                }
-            } catch (IllegalArgumentException e) {
-                errors.add("Пользователь с email " + email + " не найден");
-            }
-        }
+        List<String> errors = chatService.addMembersToGroup(id, dto.getEmails(), auth.getName());
 
         if (!errors.isEmpty()) {
+            Chat chat = chatService.getChat(id, auth.getName());
+            model.addAttribute("chat", chat);
+            model.addAttribute("currentMember", chatService.getChatMember(id, auth.getName()));
             model.addAttribute("error", String.join("; ", errors));
-            model.addAttribute("chat", chat);
-            model.addAttribute("chatType", ChatType.GROUP);
-            model.addAttribute("currentMember", currentMember);
             return "group-set";
         }
 
-        if (userIds.isEmpty()) {
-            model.addAttribute("error", "Не выбрано ни одного нового участника");
-            model.addAttribute("chat", chat);
-            model.addAttribute("chatType", ChatType.GROUP);
-            model.addAttribute("currentMember", currentMember);
-            return "group-set";
-        }
-
-        chatService.addMembersToGroup(id, userIds, auth.getName());
         return "redirect:/group-set?id=" + id;
     }
 
@@ -237,53 +175,69 @@ public class ChatSettingsController extends BaseController{
                                @RequestParam(name = "scrollPosition", value = "scrollPosition", defaultValue = "0") int scrollPosition,
                                Authentication auth,
                                Model model) {
-        User currentUser = userService.findByEmail(auth.getName());
-        Chat chat = chatService.getGroupChat(id, auth.getName());
-        ChatMember currentMember = chatService.getChatMember(id, currentUser.getEmail());
-
-        if (!currentMember.isAdmin()) {
-            return addErrorToModel(model, id, chat, currentMember, page, size, "Только администратор может удалять участников!", "group-list");
-        }
-
-        if (currentUser.getId().equals(userId)) {
-            return addErrorToModel(model, id, chat, currentMember, page, size, "Нельзя удалить самого себя!", "group-list");
-        }
-
         try {
             chatService.removeMemberFromGroup(id, userId, auth.getName());
             return "redirect:/group-list/" + id + "?page=" + page + "&size=" + size + "&scrollPosition=" + scrollPosition;
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            return addErrorToModel(model, id, chat, currentMember, page, size, e.getMessage(), "group-list");
+        } catch (InvalidChatOperationException e) {
+            return addErrorToModel(model, id, auth.getName(), page, size, e.getMessage(), "group-list");
         }
     }
 
     @PostMapping("/group/{id}/leave")
     public String leaveGroup(@PathVariable("id") Long id, Authentication auth, Model model) {
-        User currentUser = userService.findByEmail(auth.getName());
-        Chat chat = chatService.getChat(id, auth.getName());
-        ChatMember currentMember = chatService.getChatMember(id, auth.getName());
-
         try {
-            chatService.leaveGroup(id, currentUser.getId());
+            chatService.leaveGroup(id, auth.getName());
             return "redirect:/chats";
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            return addErrorToModel(model, id, chat, currentMember, 0, 10, e.getMessage(), "group-set");
+        } catch (InvalidChatOperationException e) {
+            return addErrorToModel(model, id, auth.getName(), 0, 10, e.getMessage(), "group-set");
         }
     }
 
-    private String addErrorToModel(Model model, Long chatId, Chat chat, ChatMember currentMember, int page, int size, String error, String view) {
-        Pageable pageable = PageRequest.of(page, size);
+    private String addErrorToModel(Model model, Long chatId, String userEmail, int page, int size, String error, String view) {
         model.addAttribute("error", error);
+        Chat chat = chatService.getChat(chatId, userEmail);
+        ChatMember currentMember = chatService.getChatMember(chatId, userEmail);
         model.addAttribute("chat", chat);
-        model.addAttribute("chatType", ChatType.GROUP);
         model.addAttribute("currentMember", currentMember);
         if (view.equals("group-list")) {
+            Pageable pageable = PageRequest.of(page, size);
             model.addAttribute("chatId", chatId);
             model.addAttribute("membersPage", chatService.getChatMembers(chatId, currentMember.getUser().getEmail(), pageable));
             model.addAttribute("currentUserId", currentMember.getUser().getId());
             model.addAttribute("isAdmin", currentMember.isAdmin());
         }
         return view;
+    }
+
+    @GetMapping("/group-list/{id}")
+    public String groupList(@PathVariable("id") Long id,
+                            @RequestParam(name = "page", value = "page", defaultValue = "0") int page,
+                            @RequestParam(name = "size", value = "size", defaultValue = "10") int size,
+                            @RequestParam(name = "scrollPosition", value = "scrollPosition", defaultValue = "0") int scrollPosition,
+                            Model model,
+                            Authentication auth) {
+        String email = auth.getName();
+        User currentUser = userService.findByEmail(email);
+        ChatMember currentMember = chatService.getChatMember(id, email);
+        Pageable pageable = PageRequest.of(page, size);
+        model.addAttribute("chat", chatService.getGroupChat(id, email));
+        model.addAttribute("members", chatService.getChatMembers(id, email, pageable));
+        model.addAttribute("currentUserId", currentUser.getId());
+        model.addAttribute("chatId", id);
+        model.addAttribute("isAdmin", currentMember.isAdmin());
+        model.addAttribute("scrollPosition", scrollPosition);
+        model.addAttribute("userEmail", auth.getName());
+        return "group-list";
+    }
+
+    @GetMapping("/group-list/{id}/members")
+    @ResponseBody
+    public ResponseEntity<Page<ChatMemberDTO>> getChatMembersAjax(@PathVariable("id") Long id,
+                                                                  @RequestParam(name = "page") int page,
+                                                                  @RequestParam(name = "size") int size,
+                                                                  Authentication auth) {
+        Page<ChatMemberDTO> membersPage = chatService.getChatMembers(id, auth.getName(), PageRequest.of(page, size));
+        return ResponseEntity.ok(membersPage);
     }
 
     @GetMapping("/group/{id}/invite")
@@ -293,55 +247,25 @@ public class ChatSettingsController extends BaseController{
                                 Model model,
                                 Authentication auth,
                                 HttpServletRequest request) {
-        try {
-            User currentUser = userService.findByEmail(auth.getName());
-            Chat chat = chatService.getChat(id, auth.getName());
-            String link = chatService.getInviteLink(id, auth.getName(), request);
-            model.addAttribute("addMembersDTO", new AddMembersDTO());
-            model.addAttribute("chat", chat);
-            model.addAttribute("inviteLink", link);
-            model.addAttribute("chatType", ChatType.GROUP);
-            model.addAttribute("userEmail", auth.getName());
-            return "invite";
-        } catch (IllegalArgumentException | IllegalStateException | SecurityException e) {
-            model.addAttribute("userEmail", auth.getName());
-            model.addAttribute("error", e.getMessage());
-            model.addAttribute("chatType", ChatType.GROUP);
-            return "error";
-        }
+        Chat chat = chatService.getChat(id, auth.getName());
+        String link = chatService.getInviteLink(id, auth.getName(), request);
+        model.addAttribute("addMembersDTO", new AddMembersDTO());
+        model.addAttribute("chat", chat);
+        model.addAttribute("inviteLink", link);
+        model.addAttribute("userEmail", auth.getName());
+        return "invite";
     }
 
     @GetMapping("/group/join")
     public String joinGroup(@RequestParam(name = "link") String link, Authentication auth, Model model) {
-        try {
-            User user = userService.findByEmail(auth.getName());
-            chatService.joinGroupByLink(link, user.getId());
-            Chat chat = chatService.findByInviteLink(link,auth.getName());
-            model.addAttribute("userEmail", auth.getName());
-            return "redirect:/group?id=" + chat.getId();
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            model.addAttribute("error", e.getMessage());
-            model.addAttribute("chatType", ChatType.GROUP);
-            model.addAttribute("userEmail", auth.getName());
-            return "error";
-        }
+        Chat chat = chatService.joinGroupByLinkAndGetChat(link, auth.getName());
+        return "redirect:/group?id=" + chat.getId();
     }
 
     @PostMapping("/chats/{id}/delete")
     public String deleteChat(@PathVariable("id") Long id, Authentication auth, Model model) {
-        try {
-            User currentUser = userService.findByEmail(auth.getName());
-            Chat chat = chatService.getChat(id, auth.getName());
-            if (chat.getType() == ChatType.PERSONAL || chatService.getChatMember(id, currentUser.getEmail()).isAdmin()) {
-                chatService.deleteChat(id, auth.getName());
-                return "redirect:/chats";
-            }
-            throw new IllegalStateException("Только администратор может удалить чат");
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            model.addAttribute("error", e.getMessage());
-            model.addAttribute("userEmail", auth.getName());
-            return "error";
-        }
+        chatService.deleteChat(id, auth.getName());
+        return "redirect:/chats";
     }
 
     @GetMapping("/chat/{id}/files")
@@ -352,33 +276,17 @@ public class ChatSettingsController extends BaseController{
                             @RequestParam(name = "scrollPosition", defaultValue = "0") int scrollPosition,
                             Model model,
                             Authentication auth) {
-        try {
-            User currentUser = userService.findByEmail(auth.getName());
-            Chat chat = chatService.getChat(id, auth.getName());
-            String[] sortParams = sort.split(",");
-            Sort.Direction direction = sortParams[1].equalsIgnoreCase("desc") ? Sort.Direction.DESC : Sort.Direction.ASC;
-            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortParams[0]));
-            Page<FileDTO> files = fileService.getChatFiles(id, pageable);
+        Chat chat = chatService.getChat(id, auth.getName());
+        Page<FileDTO> files = fileService.getChatFiles(id, sort, page, size);
 
-            model.addAttribute("chat", chat);
-            model.addAttribute("files", files.getContent());
-            model.addAttribute("page", files);
-            model.addAttribute("chatType", chat.getType());
-            model.addAttribute("scrollPosition", scrollPosition);
-            model.addAttribute("currentSort", sort);
-            model.addAttribute("userEmail", auth.getName());
-            return "chat-files";
-        } catch (IllegalArgumentException e) {
-            model.addAttribute("userEmail", auth.getName());
-            model.addAttribute("error", e.getMessage());
-            model.addAttribute("chatType", chatService.getChat(id, auth.getName()).getType());
-            return "error";
-        } catch (Exception e) {
-            model.addAttribute("userEmail", auth.getName());
-            model.addAttribute("error", "Возникла непредвиденная ошибка во время загрузки файлов");
-            model.addAttribute("chatType", chatService.getChat(id, auth.getName()).getType());
-            return "error";
-        }
+        model.addAttribute("chat", chat);
+        model.addAttribute("files", files.getContent());
+        model.addAttribute("page", files);
+        model.addAttribute("chatType", chat.getType());
+        model.addAttribute("scrollPosition", scrollPosition);
+        model.addAttribute("currentSort", sort);
+        model.addAttribute("userEmail", auth.getName());
+        return "chat-files";
     }
 
     @GetMapping("/chat/{id}/files/list")
@@ -388,64 +296,8 @@ public class ChatSettingsController extends BaseController{
                                                           @RequestParam(name = "size") int size,
                                                           @RequestParam(name = "sort", value = "sort", defaultValue = "uploadedAt,desc") String sort,
                                                           Authentication auth) {
-        try {
-            String email = auth.getName();
-            chatService.getChat(id, email);
-            String[] sortParams = sort.split(",");
-            Sort.Direction direction = sortParams[1].equalsIgnoreCase("desc") ? Sort.Direction.DESC : Sort.Direction.ASC;
-            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortParams[0]));
-            Page<FileDTO> files = fileService.getChatFiles(id, pageable);
-            return ResponseEntity.ok(files);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
-        } catch (Exception e) {
-            System.err.println("Непредвиденная ошибка в getChatFilesAjax: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-
-    @GetMapping("/group-list/{id}")
-    public String groupList(@PathVariable("id") Long id,
-                            @RequestParam(name = "page", value = "page", defaultValue = "0") int page,
-                            @RequestParam(name = "size", value = "size", defaultValue = "10") int size,
-                            @RequestParam(name = "scrollPosition", value = "scrollPosition", defaultValue = "0") int scrollPosition,
-                            Model model,
-                            Authentication auth) {
-        try {
-            String email = auth.getName();
-            User currentUser = userService.findByEmail(email);
-            ChatMember currentMember = chatService.getChatMember(id, email);
-            Pageable pageable = PageRequest.of(page, size);
-            model.addAttribute("chat", chatService.getGroupChat(id, email));
-            model.addAttribute("members", chatService.getChatMembers(id, email, pageable));
-            model.addAttribute("currentUserId", currentUser.getId());
-            model.addAttribute("chatId", id);
-            model.addAttribute("isAdmin", currentMember.isAdmin());
-            model.addAttribute("chatType", ChatType.GROUP);
-            model.addAttribute("scrollPosition", scrollPosition);
-            model.addAttribute("userEmail", auth.getName());
-            return "group-list";
-        } catch (IllegalArgumentException e) {
-            model.addAttribute("userEmail", auth.getName());
-            model.addAttribute("error", e.getMessage());
-            model.addAttribute("chatType", ChatType.GROUP);
-            return "error";
-        }
-    }
-
-    @GetMapping("/group-list/{id}/members")
-    @ResponseBody
-    public ResponseEntity<Page<ChatMemberDTO>> getChatMembersAjax(@PathVariable("id") Long id,
-                                                                  @RequestParam(name = "page") int page,
-                                                                  @RequestParam(name = "size") int size,
-                                                                  Authentication auth) {
-        try {
-            String email = auth.getName();
-            Pageable pageable = PageRequest.of(page, size);
-            Page<ChatMemberDTO> membersPage = chatService.getChatMembers(id, email, pageable);
-            return ResponseEntity.ok(membersPage);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
-        }
+        chatService.getChat(id, auth.getName());
+        Page<FileDTO> files = fileService.getChatFiles(id, sort, page, size);
+        return ResponseEntity.ok(files);
     }
 }

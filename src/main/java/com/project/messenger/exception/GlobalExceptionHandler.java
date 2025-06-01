@@ -9,9 +9,6 @@ import org.springframework.ui.Model;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
@@ -64,6 +61,26 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(FileUploadException.class)
     public Object handleFileUploadException(FileUploadException ex, HttpServletRequest request, Model model) {
+        boolean isAjax = "XMLHttpRequest".equals(request.getHeader("X-Requested-With"));
+        if (isAjax) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
+        }
+        model.addAttribute("error", ex.getMessage());
+        return "error";
+    }
+
+    @ExceptionHandler(FileDownloadException.class)
+    public Object handleFileDownloadxception(FileUploadException ex, HttpServletRequest request, Model model) {
+        boolean isAjax = "XMLHttpRequest".equals(request.getHeader("X-Requested-With"));
+        if (isAjax) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
+        }
+        model.addAttribute("error", ex.getMessage());
+        return "error";
+    }
+
+    @ExceptionHandler(MessageNotFoundException.class)
+    public Object handleMessageNotFoundException(MessageNotFoundException ex, HttpServletRequest request, Model model) {
         boolean isAjax = "XMLHttpRequest".equals(request.getHeader("X-Requested-With"));
         if (isAjax) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());

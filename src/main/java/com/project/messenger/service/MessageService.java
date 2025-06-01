@@ -1,9 +1,13 @@
 package com.project.messenger.service;
 
+import com.project.messenger.exception.MessageNotFoundException;
 import com.project.messenger.model.*;
+import com.project.messenger.model.dto.NotificationDTO;
+import com.project.messenger.model.dto.WebSocketMessageDTO;
 import com.project.messenger.repository.MessageRepository;
 import com.project.messenger.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,24 +36,101 @@ public class MessageService {
     @Autowired
     private NotificationService notificationService;
 
-    @Transactional
-    public Message sendMessage(Long chatId, String content, Long senderId) {
-        if (content == null || content.trim().isEmpty()) {
-            throw new IllegalArgumentException("Сообщение не может быть пустым");
-        }
-        Chat chat = chatService.getChat(chatId, userRepository.findById(senderId).get().getEmail());
-        User sender = userRepository.findById(senderId)
-                .orElseThrow(() -> new IllegalArgumentException("Отправитель не найден"));
+    @Autowired
+    private SimpMessagingTemplate simpMessagingTemplate;
 
-        Message message = new Message();
-        message.setChat(chat);
-        message.setSender(sender);
-        message.setContent(content);
-        message.setTimestamp(LocalDateTime.now());
-        message.setRead(false);
+    @Autowired
+    private WebSocketService webSocketService;
+
+    @Transactional
+    public void sendMessage(Long chatId, WebSocketMessageDTO messageDTO, String userEmail) {
+        boolean hasContent = messageDTO.getContent() != null && !messageDTO.getContent().trim().isEmpty();
+        boolean hasFiles = messageDTO.getFiles() != null && !messageDTO.getFiles().isEmpty();
+        if (!hasContent && !hasFiles) {
+            return;
+        }
+
+        User sender = userService.findByEmail(userEmail);
+        Chat chat = chatService.getChatWithMembers(chatId, userEmail);
+
+        Message message;
+        if (messageDTO.getMessageId() != null) {
+            message = findById(messageDTO.getMessageId())
+                    .orElseThrow(() -> new MessageNotFoundException("Сообщение с ID " + messageDTO.getMessageId() + " не найдено"));
+        } else {
+            message = new Message();
+            message.setChat(chat);
+            message.setSender(sender);
+            message.setTimestamp(LocalDateTime.now());
+            message.setRead(false);
+        }
+
+        if (hasContent) {
+            message.setContent(messageDTO.getContent().trim());
+        }
+
+        if (chat.getType() == ChatType.GROUP) {
+            message.getReadBy().add(sender);
+        }
+
         message = messageRepository.save(message);
-        message.getReadBy().add(sender);
-        return message;
+
+        if (hasFiles) {
+            List<File> files = messageDTO.getFiles().stream()
+                    .filter(fileAttachment -> fileAttachment.getId() != null)
+                    .map(fileAttachment -> fileService.getFile(fileAttachment.getId()))
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+
+            for (File file : files) {
+                if (file.getMessage() == null) {
+                    file.setMessage(message);
+                    fileService.save(file);
+                }
+            }
+
+            message.setFiles(files);
+            message = messageRepository.save(message);
+        }
+
+        WebSocketMessageDTO response = new WebSocketMessageDTO();
+        response.setMessageId(message.getId());
+        response.setContent(message.getContent());
+        response.setChatId(chatId);
+        response.setSenderEmail(sender.getEmail());
+        response.setSenderUsername(sender.getUsername());
+        response.setSenderAvatarPath(sender.getAvatarPath());
+        response.setRead(message.isRead());
+        response.setSentAt(message.getTimestamp());
+        response.setTempId(messageDTO.getTempId());
+        response.setFiles(
+                message.getFiles() != null && !message.getFiles().isEmpty()
+                        ? message.getFiles().stream().map(file -> {
+                    WebSocketMessageDTO.FileAttachment attachment = new WebSocketMessageDTO.FileAttachment();
+                    attachment.setId(file.getId());
+                    attachment.setFileName(file.getFileName());
+                    attachment.setContentType(file.getContentType());
+                    return attachment;
+                }).collect(Collectors.toList())
+                        : Collections.emptyList());
+
+        if (chat.getType() == ChatType.PERSONAL) {
+            chat.getMembers().forEach(member -> {
+                String recipientEmail = member.getUser().getEmail();
+                simpMessagingTemplate.convertAndSendToUser(
+                        recipientEmail,
+                        "/queue/messages",
+                        response
+                );
+            });
+        } else {
+            simpMessagingTemplate.convertAndSend("/topic/chat/" + chatId, response);
+        }
+
+        notificationService.sendNewMessageNotification(chat, message, userEmail, hasFiles);
+
+        chat.setLastMessageTimestamp(message.getTimestamp());
+        chatService.saveChat(chat);
     }
 
     @Transactional
@@ -84,6 +165,44 @@ public class MessageService {
         }
 
         return updatedMessages;
+    }
+
+    @Transactional
+    public void updateReadMessageStatus(Long chatId, String email, List<Message> updatedMessages){
+        Chat chat = chatService.getChatWithMembers(chatId, email);
+        updatedMessages.forEach(message -> {
+            WebSocketMessageDTO response = createWebSocketMessageDTO(message, chatId);
+            if (chat.getType() == ChatType.PERSONAL) {
+                chat.getMembers().forEach(member -> {
+                    String recipientEmail = member.getUser().getEmail();
+                    simpMessagingTemplate.convertAndSendToUser(recipientEmail, "/queue/private", response);
+                });
+            } else {
+                simpMessagingTemplate.convertAndSend("/topic/chat/" + chatId, response);
+            }
+        });
+    }
+
+    private WebSocketMessageDTO createWebSocketMessageDTO(Message message, Long chatId) {
+        WebSocketMessageDTO response = new WebSocketMessageDTO();
+        response.setMessageId(message.getId());
+        response.setContent(message.getContent());
+        response.setChatId(chatId);
+        response.setSenderEmail(message.getSender().getEmail());
+        response.setSenderUsername(message.getSender().getUsername());
+        response.setSenderAvatarPath(message.getSender().getAvatarPath());
+        response.setRead(message.isRead());
+        response.setSentAt(message.getTimestamp());
+        response.setFiles(message.getFiles() != null && !message.getFiles().isEmpty()
+                ? message.getFiles().stream().map(file -> {
+            WebSocketMessageDTO.FileAttachment attachment = new WebSocketMessageDTO.FileAttachment();
+            attachment.setId(file.getId());
+            attachment.setFileName(file.getFileName());
+            attachment.setContentType(file.getContentType());
+            return attachment;
+        }).collect(Collectors.toList())
+                : Collections.emptyList());
+        return response;
     }
 
     @Transactional

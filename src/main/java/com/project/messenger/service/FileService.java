@@ -1,30 +1,47 @@
 package com.project.messenger.service;
 
+import com.project.messenger.exception.AccessDeniedException;
+import com.project.messenger.exception.FileDownloadException;
+import com.project.messenger.exception.FileUploadException;
 import com.project.messenger.model.File;
 import com.project.messenger.model.Message;
+import com.project.messenger.model.User;
 import com.project.messenger.model.dto.FileDTO;
+import com.project.messenger.model.dto.FileDownloadDTO;
 import com.project.messenger.repository.FileRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class FileService {
 
     @Autowired
     private FileRepository fileRepository;
+
+    @Autowired
+    private ChatService chatService;
 
     private static final String UPLOAD_DIR = "uploads/";
 
@@ -79,12 +96,30 @@ public class FileService {
         return fileEntity;
     }
 
+    @Transactional
+    public List<Long> uploadFiles(MultipartFile[] files){
+        return Arrays.stream(files)
+                .filter(file -> !file.isEmpty())
+                .map(file -> {
+                    try {
+                        File savedFile = uploadFile(file, null);
+                        return savedFile.getId();
+                    } catch (Exception e) {
+                        throw new FileUploadException("Ошибка загрузки файла: " + file.getOriginalFilename());
+                    }
+                })
+                .collect(Collectors.toList());
+    }
+
     public File getFile(Long fileId) {
         return fileRepository.findById(fileId)
                 .orElseThrow(() -> new IllegalArgumentException("Файл не найден"));
     }
 
-    public Page<FileDTO> getChatFiles(Long chatId, Pageable pageable) {
+    public Page<FileDTO> getChatFiles(Long chatId, String sort, int page, int size) {
+        String[] sortParams = sort.split(",");
+        Sort.Direction direction = sortParams[1].equalsIgnoreCase("desc") ? Sort.Direction.DESC : Sort.Direction.ASC;
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortParams[0]));
         return fileRepository.findByMessageChatId(chatId, pageable).map(file -> {
             FileDTO dto = new FileDTO();
             dto.setId(file.getId());
@@ -101,6 +136,45 @@ public class FileService {
             }
             return dto;
         });
+    }
+
+    @Transactional
+    public FileDownloadDTO downloadFile(Long id, String email){
+        File file = getFile(id);
+        Message message = file.getMessage();
+        if (!chatService.isUserInChat(message.getChat().getId(), email)) {
+            throw new AccessDeniedException("Нет доступа к файлу");
+        }
+
+        Path filePath = Paths.get(file.getFilePath());
+        Resource resource;
+        try {
+            resource = new UrlResource(filePath.toUri());
+            if (!resource.exists() || !resource.isReadable()) {
+                throw new FileDownloadException("Файл не найден или недоступен");
+            }
+        } catch (MalformedURLException e) {
+            throw new FileDownloadException("Ошибка при загрузке файла");
+        }
+
+        String contentType;
+        try {
+            contentType = Files.probeContentType(filePath);
+            if (contentType == null) {
+                contentType = "application/octet-stream";
+            }
+        } catch (IOException e) {
+            contentType = "application/octet-stream";
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        if (contentType.startsWith("image/") || contentType.startsWith("video/")) {
+            headers.set(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + file.getFileName() + "\"");
+        } else {
+            headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file.getFileName() + "\"");
+        }
+
+        return new FileDownloadDTO(resource, contentType, headers);
     }
 
     @Transactional

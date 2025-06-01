@@ -353,20 +353,30 @@ public class ChatService {
     }
 
     @Transactional
-    public void addMembersToGroup(Long chatId, List<Long> userIds, String email) {
+    public List<String> addMembersToGroup(Long chatId, List<String> userEmails, String email) {
         Chat chat = getChat(chatId, email);
+
         if (chat.getType() != ChatType.GROUP) {
             throw new InvalidChatOperationException("Можно добавлять участников только в групповые чаты");
         }
 
+        User currentUser = userService.findByEmail(email);
+
+        List<String> errors = new ArrayList<>();
         List<ChatMember> newMembers = new ArrayList<>();
-        for (Long userId : userIds) {
-            if (chatMemberRepository.existsByChatIdAndUserId(chatId, userId)) {
+
+        for (String userEmail : userEmails) {
+            User user = userRepository.findByEmail(userEmail)
+                    .orElseThrow(() -> new UserNotFoundException(userEmail));
+            if (chatMemberRepository.existsByChatIdAndUserId(chatId, user.getId())) {
+                errors.add("Пользователь " + userEmail + " уже в чате");
+                continue;
+            } else if(userService.isBlocked(currentUser.getId(), user.getId())){
+                errors.add("Пользователь " + userEmail + " заблокирован");
                 continue;
             }
-            User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new UserNotFoundException(userId));
-            UserSettings settings = userSettingsRepository.findByUserId(userId).orElse(null);
+
+            UserSettings settings = userSettingsRepository.findByUserId(user.getId()).orElse(null);
             NotificationLevel defaultLevel = (settings != null) ? settings.getGroupChatNotifications() : NotificationLevel.ALL;
 
             ChatMember member = new ChatMember();
@@ -379,11 +389,15 @@ public class ChatService {
 
         if (!newMembers.isEmpty()) {
             chatMemberRepository.saveAll(newMembers);
+        } else {
+            errors.add("Не выбрано ни одного нового участника");
         }
 
         for(ChatMember member : newMembers){
             messageRepository.markMessagesAsReadByUser(chatId, member.getUser().getId());
         }
+
+        return errors;
     }
 
     @Transactional
@@ -419,8 +433,18 @@ public class ChatService {
         if (chat.getType() != ChatType.GROUP) {
             throw new InvalidChatOperationException("Можно удалять участников только из групповых чатов");
         }
+        ChatMember currentMember = getChatMember(chatId, userEmail);
+
+        if (!currentMember.isAdmin()) {
+            throw new InvalidChatOperationException("Только администратор может удалять участников!");
+        }
+
         ChatMember member = chatMemberRepository.findByChatIdAndUserId(chatId, userId)
-                .orElseThrow(() -> new InvalidChatOperationException("Участник не найден в чате"));
+                .orElseThrow(() -> new InvalidChatOperationException("Нельзя удалить самого себя!"));
+
+        if (currentMember.getId().equals(member.getId())) {
+            throw new InvalidChatOperationException("");
+        }
 
         if (member.isAdmin()) {
             throw new InvalidChatOperationException("Нельзя удалить администратора чата");
@@ -430,12 +454,12 @@ public class ChatService {
     }
 
     @Transactional
-    public void leaveGroup(Long chatId, Long userId) {
-        Chat chat = getChatUsingUserId(chatId,userId);
+    public void leaveGroup(Long chatId, String userEmail) {
+        Chat chat = getChat(chatId, userEmail);
         if (chat.getType() != ChatType.GROUP) {
             throw new InvalidChatOperationException("Можно покидать только групповые чаты");
         }
-        ChatMember member = chatMemberRepository.findByChatIdAndUserId(chatId, userId)
+        ChatMember member = chatMemberRepository.findByChatIdAndUserEmail(chatId, userEmail)
                 .orElseThrow(() -> new InvalidChatOperationException("Вы не являетесь участником чата"));
 
         if (member.isAdmin()) {
@@ -498,7 +522,7 @@ public class ChatService {
     }
 
     @Transactional
-    public void joinGroupByLink(String link, Long userId) {
+    public Chat joinGroupByLinkAndGetChat(String link, String userEmail) {
         Chat chat = chatRepository.findByInviteLink(link)
                 .orElseThrow(() -> new ChatNotFoundException(0L));
 
@@ -506,13 +530,17 @@ public class ChatService {
             throw new InvalidChatOperationException("Ссылка недействительна");
         }
 
+        User user = userService.findByEmail(userEmail);
+
         boolean alreadyMember = chat.getMembers().stream()
-                .anyMatch(m -> m.getUser().getId().equals(userId));
+                .anyMatch(m -> m.getUser().getId().equals(user.getId()));
         if (alreadyMember) {
             throw new InvalidChatOperationException("Вы уже состоите в этом чате");
         }
 
-        addMemberToGroup(chat.getId(), userId);
+        addMemberToGroup(chat.getId(), user.getId());
+
+        return chat;
     }
 
     private List<ChatDTO> mapToChatDTOs(List<Chat> chats, Long userId, String email) {
@@ -597,12 +625,8 @@ public class ChatService {
         chatRepository.save(chat);
     }
 
-    public boolean isUserInChat(Long chatId, Long userId) {
-        return chatMemberRepository.existsByChatIdAndUserId(chatId, userId);
-    }
-
-    public boolean existsByChatIdAndUserId(Long chatId, Long userId) {
-        return chatMemberRepository.existsByChatIdAndUserId(chatId,userId);
+    public boolean isUserInChat(Long chatId, String userEmail) {
+        return chatMemberRepository.existsByChatIdAndUserEmail(chatId, userEmail);
     }
 
     @Transactional(readOnly = true)

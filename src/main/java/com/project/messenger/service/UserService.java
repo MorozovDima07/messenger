@@ -1,5 +1,9 @@
 package com.project.messenger.service;
 
+import com.project.messenger.exception.AccessDeniedException;
+import com.project.messenger.exception.ChatNotFoundException;
+import com.project.messenger.exception.FileUploadException;
+import com.project.messenger.exception.UserNotFoundException;
 import com.project.messenger.model.*;
 import com.project.messenger.model.dto.BlockedUserDTO;
 import com.project.messenger.model.dto.RegisterRequest;
@@ -7,6 +11,7 @@ import com.project.messenger.repository.BlockedUserRepository;
 import com.project.messenger.repository.ChatRepository;
 import com.project.messenger.repository.UserRepository;
 import com.project.messenger.repository.UserSettingsRepository;
+import org.imgscalr.Scalr;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -15,7 +20,12 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -100,6 +110,84 @@ public class UserService implements UserServiceInterface {
     }
 
     @Transactional
+    public void updateUsername(String email, String name) {
+        User user = findByEmail(email);
+        if (user.getUsername().length() < 2 || user.getUsername().length() > 50) {
+            throw new IllegalArgumentException("Имя пользователя должно быть от 2 до 50 символов");
+        }
+        user.setUsername(name);
+        userRepository.save(user);
+    }
+
+    @Transactional
+    public User updateAvatarAndGetUser(String email, MultipartFile file){
+        User user = findByEmail(email);
+        if (!file.isEmpty()) {
+            String contentType = file.getContentType();
+            if (contentType != null && contentType.startsWith("image/")) {
+                if (file.getSize() <= 5 * 1024 * 1024) { // Максимум 5 МБ
+                    String avatarPath = saveAvatarFile(file, user.getId());
+                    user.setAvatarPath(avatarPath);
+                    updateUser(user);
+                } else {
+                    throw new FileUploadException("Файл слишком большой (максимум 5 МБ)");
+                }
+            } else {
+                throw new FileUploadException("Допустимы только изображения");
+            }
+        }
+        return user;
+    }
+
+    private String saveAvatarFile(MultipartFile file, Long userId) {
+        String uploadDir = "uploads/avatars/";
+        java.io.File dir = new java.io.File(uploadDir);
+        if (!dir.exists()) {
+            dir.mkdirs();
+        }
+
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw new FileUploadException("Файл должен быть изображением (JPEG, PNG)");
+        }
+
+        User user = findById(userId);
+        if (user.getAvatarPath() != null) {
+            java.io.File oldAvatar = new java.io.File(user.getAvatarPath().substring(1)); // Убираем начальный слэш
+            if (oldAvatar.exists()) {
+                oldAvatar.delete();
+            }
+        }
+
+        String fileName = "user_" + userId + "_" + System.currentTimeMillis() + "." + getFileExtension(file.getOriginalFilename());
+        java.io.File dest = new java.io.File(dir.getAbsolutePath() + File.separator + fileName);
+
+        try{
+            BufferedImage originalImage = ImageIO.read(file.getInputStream());
+            int targetSize = 400;
+            BufferedImage resizedImage;
+
+            if (originalImage.getWidth() < originalImage.getHeight()) {
+                resizedImage = Scalr.resize(originalImage, Scalr.Method.QUALITY, Scalr.Mode.FIT_TO_WIDTH, targetSize);
+            } else {
+                resizedImage = Scalr.resize(originalImage, Scalr.Method.QUALITY, Scalr.Mode.FIT_TO_HEIGHT, targetSize);
+            }
+
+            ImageIO.write(resizedImage, getFileExtension(file.getOriginalFilename()), dest);
+        } catch (IOException e){
+            throw new FileUploadException("Не удалось сохранить файл: " + e);
+        }
+        return "/" + uploadDir + fileName;
+    }
+
+    private String getFileExtension(String fileName) {
+        if (fileName == null || !fileName.contains(".")) {
+            return "jpg";
+        }
+        return fileName.substring(fileName.lastIndexOf(".") + 1);
+    }
+
+    @Transactional
     public void updateUserSettings(Long userId, NotificationLevel personalChatNotifications,
                                    NotificationLevel groupChatNotifications, String theme) {
         UserSettings settings = userSettingsRepository.findByUserId(userId)
@@ -117,17 +205,27 @@ public class UserService implements UserServiceInterface {
 
 
     @Transactional
-    public void blockUser(Long userId, Long blockedUserId) {
-        if (userId.equals(blockedUserId)) {
-            throw new IllegalArgumentException("Нельзя заблокировать самого себя");
+    public void blockUser(String userEmail, Long chatId) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new UserNotFoundException("Пользователь не найден"));
+
+        Chat chat = chatRepository.findById(chatId)
+                .orElseThrow(() -> new ChatNotFoundException(chatId));
+
+        Long blockedUserId = chat.getMembers().stream()
+                .filter(m -> !m.getUser().getEmail().equals(userEmail))
+                .findFirst()
+                .map(m -> m.getUser().getId())
+                .orElseThrow(() -> new UserNotFoundException("Пользователь не найден"));
+
+        if (user.getId().equals(blockedUserId)) {
+            throw new AccessDeniedException("Нельзя заблокировать самого себя");
         }
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
         User blockedUser = userRepository.findById(blockedUserId)
-                .orElseThrow(() -> new IllegalArgumentException("Пользователь для блокировки не найден"));
+                .orElseThrow(() -> new UserNotFoundException("Пользователь для блокировки не найден"));
 
-        if (blockedUserRepository.existsByUserIdAndBlockedUserId(userId, blockedUserId)) {
+        if (blockedUserRepository.existsByUserIdAndBlockedUserId(user.getId(), blockedUserId)) {
             throw new IllegalStateException("Пользователь уже заблокирован");
         }
 

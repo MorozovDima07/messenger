@@ -119,7 +119,7 @@ public class MessageService {
                 String recipientEmail = member.getUser().getEmail();
                 simpMessagingTemplate.convertAndSendToUser(
                         recipientEmail,
-                        "/queue/messages",
+                        "/queue/private",
                         response
                 );
             });

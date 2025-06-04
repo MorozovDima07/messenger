@@ -74,7 +74,8 @@
 
     const observer = new IntersectionObserver((entries) => {
         const isIntersecting = entries[0].isIntersecting;
-        console.log(`IntersectionObserver triggered, isIntersecting=${isIntersecting}, isLoading=${isLoading}, sentinelVisible=${sentinel.getBoundingClientRect().top < window.innerHeight}`);
+        console.log(`IntersectionObserver triggered, isIntersecting=${isIntersecting}, isLoading=${isLoading},
+        sentinelVisible=${sentinel.getBoundingClientRect().top < window.innerHeight}`);
         if (isIntersecting && !isLoading) {
             console.log(`Loading page ${page + 1}`);
             loadMoreMembers();

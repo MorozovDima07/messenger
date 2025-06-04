@@ -132,18 +132,18 @@ public class ChatService {
         chatRepository.save(chat);
     }
 
-    @Transactional
-    public void updateChatName(Long chatId, String name, String userEmail) {
-        Chat chat = getChat(chatId, userEmail);
-        chat.setName(name);
-        chatRepository.save(chat);
-    }
-
     private String getFileExtension(String fileName) {
         if (fileName == null || !fileName.contains(".")) {
             return "jpg";
         }
         return fileName.substring(fileName.lastIndexOf(".") + 1).toLowerCase();
+    }
+
+    @Transactional
+    public void updateChatName(Long chatId, String name, String userEmail) {
+        Chat chat = getChat(chatId, userEmail);
+        chat.setName(name);
+        chatRepository.save(chat);
     }
 
     @Transactional(readOnly = true)
@@ -156,6 +156,7 @@ public class ChatService {
         return chat;
     }
 
+    @Transactional(readOnly = true)
     public Chat getChatUsingUserId(Long chatId, Long userId) {
         Chat chat = chatRepository.findById(chatId)
                 .orElseThrow(() -> new ChatNotFoundException(chatId));
@@ -187,7 +188,7 @@ public class ChatService {
             dto.setEmail(member.getUser().getEmail());
             dto.setAdmin(member.isAdmin());
             dto.setLastActive(member.getUser().getLastActive());
-            dto.setOnline(false); //доработать в будущем
+            dto.setOnline(false);
             dto.setAvatarPath(member.getUser().getAvatarPath());
             return dto;
         });
@@ -529,12 +530,6 @@ public class ChatService {
         addMemberToGroup(chat.getId(), user.getId());
 
         return chat;
-    }
-
-    private List<ChatDTO> mapToChatDTOs(List<Chat> chats, Long userId, String email) {
-        return chats.stream()
-                .map(chat -> mapToChatDTO(chat, userId, email))
-                .collect(Collectors.toList());
     }
 
     private ChatDTO mapToChatDTO(Chat chat, Long userId, String email) {
